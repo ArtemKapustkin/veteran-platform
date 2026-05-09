@@ -242,11 +242,15 @@ paths:
       tags: [Verification]
       summary: Submit documents for AI-vision verification
       description: |
-        Documents are uploaded and processed asynchronously by the AI vision integration.
-        The endpoint returns immediately with `status=processing`. Poll `GET /me/verification`
-        for the result. Allowed document types are returned by `GET /reference/document-types`.
+        Documents are streamed **directly to the OpenAI Vision API** for analysis. **We do
+        not persist the image** — bytes are held in memory only for the duration of the
+        request, sent to OpenAI, then discarded. Only the AI result (decision, confidence,
+        extracted fields, notes) is stored against the veteran record.
 
-        Image size limit: `doc_photo_max_mb` (see `GET /reference/limits`).
+        The call is synchronous: the response returns once the OpenAI assistant has finished
+        analysis (typically a few seconds). Allowed document types are returned by
+        `GET /reference/document-types`. Image size limit: `doc_photo_max_mb` (see
+        `GET /reference/limits`).
       requestBody:
         required: true
         content:
@@ -1053,10 +1057,13 @@ components:
 
     VerificationDocument:
       type: object
+      description: |
+        Record of a verification attempt. **Document images are never stored on this server**;
+        they are streamed to the OpenAI Vision API and discarded after analysis. This object
+        therefore exposes the result and metadata only, with no image URL.
       properties:
         id:            { type: string, format: uuid }
         document_type: { $ref: '#/components/schemas/DocumentType' }
-        url:           { type: string, format: uri }
         uploaded_at:   { type: string, format: date-time }
         ai_result:
           type: object

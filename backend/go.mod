@@ -5,20 +5,27 @@ go 1.25
 require (
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/fasthttp/router v1.5.4
+	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/cobra v1.8.1
+	github.com/twilio/twilio-go v1.30.9
 	github.com/uptrace/bun v1.2.5
 	github.com/uptrace/bun/dialect/pgdialect v1.2.5
 	github.com/uptrace/bun/driver/pgdriver v1.2.5
 	github.com/valyala/fasthttp v1.58.0
 	go.uber.org/fx v1.23.0
+	golang.org/x/crypto v0.29.0
 )
 
 require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
 	github.com/savsgio/gotils v0.0.0-20240704082632-aef3928b8a38 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -29,7 +36,6 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.29.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 )

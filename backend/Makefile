@@ -1,4 +1,4 @@
-.PHONY: start stop logs build test tidy run
+.PHONY: start stop logs build test tidy run migrate migrate-rollback migrate-status
 
 start:
 	docker compose -f deployments/docker-compose.yaml up -d --build
@@ -20,3 +20,12 @@ tidy:
 
 run:
 	go run ./cmd serve
+
+migrate:
+	go run ./cmd migrate
+
+migrate-rollback:
+	go run ./cmd migrate:rollback
+
+migrate-status:
+	go run ./cmd migrate:status
