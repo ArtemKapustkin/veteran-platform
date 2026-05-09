@@ -1,0 +1,127 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@theme {
+  --color-bg: #FAFAF7;
+  --color-surface: #FFFFFF;
+  --color-text: #1A1A1A;
+  --color-text2: #6B7280;
+  --color-text-muted: #9CA3AF;
+  --color-border: #E5E7EB;
+  --color-border-soft: #EFEFEC;
+  --color-primary: #5B8C5E;
+  --color-primary-ink: #1F4D34;
+  --color-primary-soft: #E5F4EB;
+  --color-invite: #3F7F62;
+  --color-invite-ink: #0E3A26;
+  --color-amber: #F59E0B;
+  --color-amber-soft: #FEF3C7;
+  --color-green: #34D399;
+  --color-green-soft: #D1FAE5;
+  --color-blue: #60A5FA;
+  --color-blue-soft: #DBEAFE;
+  --color-rose: #F4A4A4;
+  --color-rose-soft: #FEE7E7;
+  --color-success: #10B981;
+  --color-stage: #E9E5DD;
+  --color-map-bg: #F1EFEA;
+  --color-map-road: #FFFFFF;
+  --color-map-road-edge: #E7E2D8;
+  --color-map-park: #DCE6D2;
+  --color-map-water: #CFE0EA;
+
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-sheet: 0 -8px 24px rgba(0, 0, 0, 0.06), 0 -1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-floating: 0 8px 28px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+
+  --animate-pulse-ring: pulse-ring 2s ease-out 1;
+  --animate-mic-pulse: mic-pulse 1.4s ease-out infinite;
+  --animate-slide-in-right: slide-in-right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+  @keyframes pulse-ring {
+    0%   { transform: scale(0.85); opacity: 0.9; }
+    70%  { transform: scale(1.5);  opacity: 0; }
+    100% { transform: scale(1.5);  opacity: 0; }
+  }
+  @keyframes mic-pulse {
+    0%, 100% { opacity: 0.9; transform: scale(1); }
+    50%      { opacity: 0.4; transform: scale(1.05); }
+  }
+  @keyframes slide-in-right {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+}
+
+:root {
+  --text-base-scale: 1;
+}
+
+html {
+  font-size: calc(16px * var(--text-base-scale));
+  background: var(--color-stage);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--color-stage);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+
+button {
+  font-family: inherit;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+html.text-size-sm  { --text-base-scale: 0.9; }
+html.text-size-md  { --text-base-scale: 1; }
+html.text-size-lg  { --text-base-scale: 1.15; }
+
+html.high-contrast {
+  --color-text2: #4B5563;
+  --color-text-muted: #6B7280;
+  --color-border: #1A1A1A;
+  --color-border-soft: #6B7280;
+}
+html.high-contrast a,
+html.high-contrast button {
+  outline-color: #1A1A1A;
+}
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Universal focus-visible ring — never disabled, even with reduce-motion */
+*:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* MapLibre attribution — keep visible but compact */
+.maplibregl-ctrl-attrib {
+  font-size: 9px !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-bottom-left {
+  z-index: 0 !important;
+}

@@ -30,3 +30,6 @@ frontend/build/
 *.log
 coverage.out
 coverage.html
+
+# Playwright MCP (screenshots, traces, scratch output)
+.playwright-mcp/
