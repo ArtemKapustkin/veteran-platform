@@ -18,7 +18,7 @@ import (
 
 const (
 	maxGroupSize        = 4
-	groupReservationTTL = 24 * time.Hour
+	groupReservationTTL = 2 * time.Hour
 	expirerInterval     = time.Minute
 )
 

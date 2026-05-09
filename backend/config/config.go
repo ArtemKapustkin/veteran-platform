@@ -32,6 +32,10 @@ type Config struct {
 
 	OpenAIKey         string `env:"OPENAI_API_KEY" envDefault:""`
 	OpenAIAssistantID string `env:"OPENAI_ASSISTANT_ID" envDefault:""`
+
+	GCSBucket          string `env:"GCS_BUCKET" envDefault:""`
+	UploadsLocalDir    string `env:"UPLOADS_LOCAL_DIR" envDefault:"/tmp/veteran-platform-uploads"`
+	UploadsPublicBase  string `env:"UPLOADS_PUBLIC_BASE" envDefault:""`
 }
 
 func Load() (*Config, error) {

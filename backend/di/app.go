@@ -13,6 +13,7 @@ import (
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/logger"
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/otp"
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/server"
+	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/storage"
 )
 
 func App() fx.Option {
@@ -32,6 +33,7 @@ func App() fx.Option {
 
 			otp.NewSender,
 			aivision.NewVerifier,
+			storage.NewUploader,
 
 			repository.NewVeteranRepository,
 			repository.NewOtpRepository,
@@ -58,6 +60,7 @@ func App() fx.Option {
 			http_handler.NewAdminVeteranHandler,
 			http_handler.NewReferenceHandler,
 			http_handler.NewCommunityHandler,
+			http_handler.NewUploadHandler,
 		),
 		fx.Invoke(
 			http_handler.RegisterHealthHandler,
@@ -70,6 +73,8 @@ func App() fx.Option {
 			http_handler.RegisterAdminVeteranHandler,
 			http_handler.RegisterReferenceHandler,
 			http_handler.RegisterCommunityHandler,
+			http_handler.RegisterUploadHandler,
+			http_handler.RegisterLocalUploadsRoute,
 			application.StartRegistrationExpirer,
 			func(*server.Server) {},
 		),

@@ -925,7 +925,7 @@ components:
         feedback_text_max:         { type: integer, example: 300 }
         doc_photo_max_mb:          { type: integer, example: 10 }
         group_max_seats:           { type: integer, example: 4 }
-        group_confirm_window_hours:{ type: integer, example: 24 }
+        group_confirm_window_hours:{ type: integer, example: 2 }
 
     # ─────── AUTH ───────
 
