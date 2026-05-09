@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
 import { DragHandle } from "@/components/shared/DragHandle";
 import { TgIcon } from "@/components/icons";
+import { useAuthStore } from "@/lib/store";
 
 export default function LoginPage() {
   const router = useRouter();
+  const login = useAuthStore((s) => s.login);
 
   const handleTgLogin = () => {
-    // Stub: in the real product this hits a Telegram OAuth flow.
+    // Stub: real product hits Telegram OAuth here. For now flip the mocked
+    // session and drop the user into the map.
+    login();
     router.push("/map");
   };
 

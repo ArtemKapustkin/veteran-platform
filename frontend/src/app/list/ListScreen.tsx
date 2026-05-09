@@ -6,6 +6,7 @@ import { SearchBar } from "@/components/shared/SearchBar";
 import { BottomToolbar } from "@/components/shared/BottomToolbar";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 import { EventCardV2 } from "@/components/shared/EventCardV2";
+import { AddEventFab } from "@/components/shared/AddEventFab";
 import { Overlays } from "@/components/sheets/Overlays";
 import { FilterIcon } from "@/components/icons";
 import { EVENTS } from "@/data/events";
@@ -51,6 +52,8 @@ export function ListScreen() {
           ))}
         </div>
       </div>
+
+      <AddEventFab />
 
       <div className="absolute inset-x-3 bottom-6 z-10">
         <BottomToolbar active="list" />

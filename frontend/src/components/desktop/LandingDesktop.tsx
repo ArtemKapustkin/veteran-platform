@@ -1,9 +1,19 @@
+"use client";
+
 import Link from "next/link";
 import { Btn } from "@/components/atoms/Btn";
-import { ArrowIcon } from "@/components/icons";
+import { ArrowIcon, TgIcon } from "@/components/icons";
+import { useAuthStore } from "@/lib/store";
+import { useMounted } from "@/lib/useMounted";
 import { DesktopNav } from "./DesktopNav";
 
 export function LandingDesktop() {
+  const mounted = useMounted();
+  const loggedIn = useAuthStore((s) => s.loggedIn);
+  // SSR/first paint defaults to guest so the Telegram CTA renders consistently
+  // before the auth store rehydrates.
+  const isLoggedIn = mounted && loggedIn;
+
   return (
     <div
       className="bg-bg flex flex-col"
@@ -35,17 +45,29 @@ export function LandingDesktop() {
             Карта подій для ветеранів і ветеранок. Бачиш, скільки своїх уже
             йде — і йдеш не один. Запросити побратима — один тап у Telegram.
           </p>
-          <div className="mt-11 flex justify-center">
-            <Link href="/map" aria-label="Переглянути івенти">
+          <div className="mt-11 flex flex-wrap justify-center gap-3">
+            <Link href="/map" aria-label="Переглянути події">
               <Btn
                 kind="primary"
                 size="lg"
                 iconRight={<ArrowIcon size={18} />}
                 asLink
               >
-                Переглянути івенти
+                Переглянути події
               </Btn>
             </Link>
+            {!isLoggedIn ? (
+              <Link href="/login" aria-label="Увійти через Telegram">
+                <Btn
+                  kind="secondary"
+                  size="lg"
+                  icon={<TgIcon size={16} />}
+                  asLink
+                >
+                  Увійти через Telegram
+                </Btn>
+              </Link>
+            ) : null}
           </div>
           <div
             className="text-text-muted mt-12 flex items-center justify-center gap-2.5"

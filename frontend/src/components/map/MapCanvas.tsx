@@ -3,7 +3,10 @@
 import { Map, type MapRef } from "react-map-gl/maplibre";
 import { forwardRef, type ReactNode } from "react";
 
-export const MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+// `liberty` is OpenFreeMap's full-color OSM Liberty style — soft green parks,
+// pastel water, gentle road tints. Was previously `positron` (greyscale-ish);
+// liberty gives the map more life without drowning out the colored event pins.
+export const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 export interface MapCanvasProps {
   longitude?: number;

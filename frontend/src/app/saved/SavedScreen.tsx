@@ -5,16 +5,41 @@ import { AppHeader } from "@/components/shared/AppHeader";
 import { BottomToolbar } from "@/components/shared/BottomToolbar";
 import { Btn } from "@/components/atoms/Btn";
 import { EventCardV2 } from "@/components/shared/EventCardV2";
+import { AccountGuest } from "@/components/account/AccountGuest";
 import { Overlays } from "@/components/sheets/Overlays";
 import { HeartIcon } from "@/components/icons";
 import { EVENTS } from "@/data/events";
-import { useEventsStore } from "@/lib/store";
+import { useAuthStore, useEventsStore } from "@/lib/store";
 import { useMounted } from "@/lib/useMounted";
 
 export function SavedScreen() {
   const mounted = useMounted();
+  const loggedIn = useAuthStore((s) => s.loggedIn);
   const savedIds = useEventsStore((s) => s.savedIds);
-  const saved = mounted ? EVENTS.filter((e) => savedIds.includes(e.id)) : [];
+  const isLoggedIn = mounted && loggedIn;
+
+  // Збережені requires auth — guests get the account login prompt instead
+  // of an empty state they can't fill (matches the prototype's S08 fallback
+  // to S12_AccountGuest).
+  if (!isLoggedIn) {
+    return (
+      <main
+        className="bg-bg relative flex flex-col overflow-hidden"
+        style={{ height: "100dvh" }}
+      >
+        <div className="px-4 pt-3 pb-2">
+          <AppHeader />
+        </div>
+        <AccountGuest />
+        <div className="absolute inset-x-3 bottom-6 z-10">
+          <BottomToolbar active="account" />
+        </div>
+        <Overlays />
+      </main>
+    );
+  }
+
+  const saved = EVENTS.filter((e) => savedIds.includes(e.id));
   const filled = saved.length > 0;
 
   return (

@@ -46,14 +46,17 @@ export function AppHeader({
       <button
         type="button"
         onClick={handleAccess}
-        aria-label="Налаштування доступності"
-        className="bg-surface text-text relative flex h-[38px] w-[38px] items-center justify-center rounded-xl shadow-soft"
+        aria-label="Доступність — налаштування інклюзивності"
+        title="Доступність"
+        className="border-primary bg-primary-soft text-primary-ink relative flex h-11 items-center gap-1.5 rounded-full border-2 pl-2.5 pr-3.5 shadow-soft active:brightness-95"
+        style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.005em" }}
       >
-        <AccessIcon size={20} />
+        <AccessIcon size={20} sw={2} />
+        <span>Доступність</span>
         {pulse ? (
           <span
             aria-hidden
-            className="border-primary pointer-events-none absolute -inset-0.5 rounded-[14px] border-2"
+            className="border-primary pointer-events-none absolute -inset-0.5 rounded-full border-2"
             style={{ animation: "var(--animate-pulse-ring)" }}
           />
         ) : null}

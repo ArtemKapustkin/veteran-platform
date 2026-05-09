@@ -1,29 +1,45 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { GearIcon, HeartIcon, PinIcon } from "@/components/icons";
+import { HeartIcon, PinIcon, UserIcon } from "@/components/icons";
+import { useAuthStore } from "@/lib/store";
+import { useMounted } from "@/lib/useMounted";
 import type { ReactNode } from "react";
 
 /**
  * Active tab the parent screen reports. The toolbar only renders three
- * primary destinations (Події / Збережені / Налаштування) — `"list"` lights
- * up the same "Події" tab as `"map"` so map↔list lives inside the screen
- * via the ViewToggle, not here.
+ * primary destinations — `"list"` lights up the same "Події" tab as `"map"`
+ * so map↔list lives inside the screen via the ViewToggle, not here.
+ *
+ * `"settings"` is kept for backward compat but maps onto the `"account"`
+ * tab; the dedicated settings entry was folded into the account screen.
  */
-export type ToolbarTab = "map" | "list" | "saved" | "settings";
+export type ToolbarTab = "map" | "list" | "saved" | "account" | "settings";
 
-type ToolbarItemId = "map" | "saved" | "settings";
+type ToolbarItem = {
+  id: "map" | "saved" | "account";
+  label: string;
+  icon: ReactNode;
+  requireAuth?: boolean;
+};
 
-const ITEMS: { id: ToolbarItemId; label: string; icon: ReactNode }[] = [
-  { id: "map",      label: "Події",     icon: <PinIcon size={22} /> },
-  { id: "saved",    label: "Збережені", icon: <HeartIcon size={22} /> },
-  { id: "settings", label: "Налашт.",   icon: <GearIcon size={22} /> },
+const ALL_ITEMS: ToolbarItem[] = [
+  { id: "map",     label: "Події",     icon: <PinIcon size={22} /> },
+  { id: "saved",   label: "Збережені", icon: <HeartIcon size={22} />, requireAuth: true },
+  { id: "account", label: "Акаунт",    icon: <UserIcon size={22} /> },
 ];
 
 export function BottomToolbar({ active }: { active: ToolbarTab }) {
   const router = useRouter();
+  const mounted = useMounted();
+  const loggedIn = useAuthStore((s) => s.loggedIn);
+  // SSR/first paint: guest layout. Avoids hydration mismatch on the first
+  // render after a logged-in reload.
+  const isLoggedIn = mounted && loggedIn;
 
-  const handle = (id: ToolbarItemId) => {
+  const items = ALL_ITEMS.filter((it) => !it.requireAuth || isLoggedIn);
+
+  const handle = (id: ToolbarItem["id"]) => {
     switch (id) {
       case "map":
         router.push("/map");
@@ -31,14 +47,16 @@ export function BottomToolbar({ active }: { active: ToolbarTab }) {
       case "saved":
         router.push("/saved");
         break;
-      case "settings": {
-        const url = new URL(window.location.href);
-        url.searchParams.set("a11y", "1");
-        router.push(url.pathname + url.search, { scroll: false });
+      case "account":
+        router.push("/account");
         break;
-      }
     }
   };
+
+  // Map legacy "settings" label onto "account" so existing callers (e.g.
+  // the saved screen) still highlight the right tab without a churn.
+  const normalizedActive: ToolbarTab =
+    active === "settings" ? "account" : active;
 
   return (
     <nav
@@ -50,9 +68,10 @@ export function BottomToolbar({ active }: { active: ToolbarTab }) {
         boxShadow: "var(--shadow-floating)",
       }}
     >
-      {ITEMS.map((it) => {
+      {items.map((it) => {
         const on =
-          it.id === active || (it.id === "map" && active === "list");
+          it.id === normalizedActive ||
+          (it.id === "map" && normalizedActive === "list");
         return (
           <button
             key={it.id}

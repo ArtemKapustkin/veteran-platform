@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/shared/AppHeader";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { BottomToolbar } from "@/components/shared/BottomToolbar";
 import { ViewToggle } from "@/components/shared/ViewToggle";
+import { AddEventFab } from "@/components/shared/AddEventFab";
 import { MapCanvas } from "@/components/map/MapCanvas";
 import { PinLayer } from "@/components/map/PinLayer";
 import { Overlays } from "@/components/sheets/Overlays";
@@ -65,6 +66,8 @@ export function MapScreen() {
           </button>
         </div>
       </div>
+
+      <AddEventFab />
 
       {/* Bottom toolbar */}
       <div className="absolute inset-x-3 bottom-6 z-10">

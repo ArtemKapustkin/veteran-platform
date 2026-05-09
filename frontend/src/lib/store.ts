@@ -53,6 +53,32 @@ export const useEventsStore = create<EventsState>()(
   ),
 );
 
+// ─── Auth (mocked session) ──────────────────────────────────
+//
+// Telegram-OAuth is stubbed for now: `login()` flips `loggedIn` to true and
+// the rest of the UI keys off it (account chip in the desktop nav, Saved tab
+// in the mobile toolbar, /saved & /account guest fallbacks, etc). Persisted
+// to localStorage so a reload doesn't kick the user back to landing.
+interface AuthState {
+  loggedIn: boolean;
+  login: () => void;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      loggedIn: false,
+      login: () => set({ loggedIn: true }),
+      logout: () => set({ loggedIn: false }),
+    }),
+    {
+      name: "svoi:auth",
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+);
+
 // ─── Accessibility prefs ────────────────────────────────────
 
 export type TextSize = "sm" | "md" | "lg";
