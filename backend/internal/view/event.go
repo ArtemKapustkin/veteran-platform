@@ -23,30 +23,44 @@ type Location struct {
 	Lng      *float64 `json:"lng,omitempty"`
 }
 
+// EventAttendee is the public, privacy-respecting summary of someone who's
+// going to an event — enough to render an avatar circle and a first-name
+// line ("Іван"), without exposing phone, full last name, or brigade.
+type EventAttendee struct {
+	VeteranID      uuid.UUID `json:"veteran_id"`
+	Initial        string    `json:"initial"`
+	FirstName      string    `json:"first_name,omitempty"`
+	AudienceStatus string    `json:"audience_status,omitempty"`
+}
+
 type Event struct {
-	ID                uuid.UUID  `json:"id"`
-	Category          string     `json:"category"`
-	Status            string     `json:"status"`
-	Title             string     `json:"title"`
-	Description       string     `json:"description,omitempty"`
-	Quota             int        `json:"quota"`
-	SeatsTaken        int        `json:"seats_taken"`
-	SeatsRemaining    int        `json:"seats_remaining"`
-	StartsAt          time.Time  `json:"starts_at"`
-	EndsAt            *time.Time `json:"ends_at,omitempty"`
-	Format            string     `json:"format"`
-	Repeat            string     `json:"repeat,omitempty"`
-	ForWhom           string     `json:"for_whom"`
-	Cost              *EventCost `json:"cost"`
-	AccessibilityTags []string   `json:"accessibility_tags"`
-	VerifiedOnly      bool       `json:"verified_only"`
-	CommunityID       *uuid.UUID `json:"community_id,omitempty"`
-	Location          *Location  `json:"location,omitempty"`
-	CoverImageURL     *string    `json:"cover_image_url,omitempty"`
-	CreatedByRole     string     `json:"created_by_role"`
-	CreatedByID       uuid.UUID  `json:"created_by_id"`
-	RejectionReason   *string    `json:"rejection_reason,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
+	ID                uuid.UUID       `json:"id"`
+	Category          string          `json:"category"`
+	Status            string          `json:"status"`
+	Title             string          `json:"title"`
+	Description       string          `json:"description,omitempty"`
+	Quota             int             `json:"quota"`
+	SeatsTaken        int             `json:"seats_taken"`
+	SeatsRemaining    int             `json:"seats_remaining"`
+	StartsAt          time.Time       `json:"starts_at"`
+	EndsAt            *time.Time      `json:"ends_at,omitempty"`
+	Format            string          `json:"format"`
+	Repeat            string          `json:"repeat,omitempty"`
+	ForWhom           string          `json:"for_whom"`
+	Cost              *EventCost      `json:"cost"`
+	AccessibilityTags []string        `json:"accessibility_tags"`
+	VerifiedOnly      bool            `json:"verified_only"`
+	CommunityID       *uuid.UUID      `json:"community_id,omitempty"`
+	Location          *Location       `json:"location,omitempty"`
+	CoverImageURL     *string         `json:"cover_image_url,omitempty"`
+	CreatedByRole     string          `json:"created_by_role"`
+	CreatedByID       uuid.UUID       `json:"created_by_id"`
+	RejectionReason   *string         `json:"rejection_reason,omitempty"`
+	CreatedAt         time.Time       `json:"created_at"`
+	// First few attendees (truncated server-side; total count is
+	// `seats_taken`). Sorted by registration time ascending so the avatars
+	// stay stable as more people join.
+	Attendees []EventAttendee `json:"attendees"`
 }
 
 type EventDetail struct {
@@ -116,6 +130,7 @@ func FromEvent(e *model.Event) *Event {
 		CreatedByID:       e.CreatedByID,
 		RejectionReason:   e.RejectionReason,
 		CreatedAt:         e.CreatedAt,
+		Attendees:         []EventAttendee{},
 	}
 }
 

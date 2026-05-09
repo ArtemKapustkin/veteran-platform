@@ -48,6 +48,14 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
     window.open(telegramShareUrl(event), "_blank", "noopener,noreferrer");
   };
 
+  const handleRsvp = async (on: boolean) => {
+    try {
+      await setRsvp(event.id, on);
+    } catch (e) {
+      window.alert(`Не вдалось оформити запис: ${(e as Error).message}`);
+    }
+  };
+
   return (
     <div className="bg-bg flex flex-col" style={{ minHeight: "100vh" }}>
       <DesktopNav />
@@ -303,7 +311,7 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
                     kind="ghost"
                     size="md"
                     fullWidth
-                    onClick={() => setRsvp(event.id, false)}
+                    onClick={() => handleRsvp(false)}
                     className="text-text2"
                   >
                     Скасувати участь
@@ -315,7 +323,7 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
                     kind="primary"
                     size="lg"
                     fullWidth
-                    onClick={() => setRsvp(event.id, true)}
+                    onClick={() => handleRsvp(true)}
                   >
                     Я йду
                   </Btn>

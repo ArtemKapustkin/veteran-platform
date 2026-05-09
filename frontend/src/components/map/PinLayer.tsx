@@ -11,7 +11,7 @@ export function PinLayer({
   focusedId,
 }: {
   events: AppEvent[];
-  focusedId?: number | null;
+  focusedId?: string | null;
 }) {
   const router = useRouter();
 

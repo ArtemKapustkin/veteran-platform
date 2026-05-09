@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
 import { TgIcon, UserIcon } from "@/components/icons";
-import { useAuthStore } from "@/lib/store";
 
 /**
  * Shown to unauthenticated visitors on /account, and as a fallback when
@@ -12,13 +11,9 @@ import { useAuthStore } from "@/lib/store";
  */
 export function AccountGuest() {
   const router = useRouter();
-  const login = useAuthStore((s) => s.login);
 
-  const handleTgLogin = () => {
-    // Stub for Telegram OAuth — flips the mocked session and drops the
-    // user back into the map.
-    login();
-    router.push("/map");
+  const handleLogin = () => {
+    router.push("/login");
   };
 
   const handleSkip = () => {
@@ -62,9 +57,9 @@ export function AccountGuest() {
             size="lg"
             fullWidth
             icon={<TgIcon size={18} />}
-            onClick={handleTgLogin}
+            onClick={handleLogin}
           >
-            Увійти через Telegram
+            Увійти через SMS
           </Btn>
           <Btn kind="ghost" size="md" fullWidth onClick={handleSkip}>
             Не зараз

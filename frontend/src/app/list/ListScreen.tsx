@@ -9,10 +9,11 @@ import { EventCardV2 } from "@/components/shared/EventCardV2";
 import { AddEventFab } from "@/components/shared/AddEventFab";
 import { Overlays } from "@/components/sheets/Overlays";
 import { FilterIcon } from "@/components/icons";
-import { EVENTS } from "@/data/events";
+import { useEvents } from "@/lib/useEvents";
 
 export function ListScreen() {
   const router = useRouter();
+  const { events, loading, error } = useEvents();
 
   const onFilters = () => {
     const url = new URL(window.location.href);
@@ -46,11 +47,19 @@ export function ListScreen() {
       </div>
 
       <div className="flex-1 overflow-auto px-4 pt-2 pb-28">
-        <div className="flex flex-col gap-3.5">
-          {EVENTS.map((e) => (
-            <EventCardV2 key={e.id} event={e} />
-          ))}
-        </div>
+        {error ? (
+          <ListMessage>Не вдалось завантажити події. {error}</ListMessage>
+        ) : loading && events.length === 0 ? (
+          <ListMessage>Завантажуємо події…</ListMessage>
+        ) : events.length === 0 ? (
+          <ListMessage>Поки що немає опублікованих подій.</ListMessage>
+        ) : (
+          <div className="flex flex-col gap-3.5">
+            {events.map((e) => (
+              <EventCardV2 key={e.id} event={e} />
+            ))}
+          </div>
+        )}
       </div>
 
       <AddEventFab />
@@ -61,5 +70,16 @@ export function ListScreen() {
 
       <Overlays />
     </main>
+  );
+}
+
+function ListMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="text-text2 mt-10 text-center"
+      style={{ fontSize: 14 }}
+    >
+      {children}
+    </div>
   );
 }

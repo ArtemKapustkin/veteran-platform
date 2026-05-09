@@ -37,6 +37,14 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
     );
   };
 
+  const onRsvp = async () => {
+    try {
+      await setRsvp(event.id, true);
+    } catch (e) {
+      window.alert(`Не вдалось оформити запис: ${(e as Error).message}`);
+    }
+  };
+
   return (
     <aside
       role="dialog"
@@ -78,7 +86,7 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
         <span>
           {event.date} · {event.time}
         </span>
-        <span>· {event.place}</span>
+        {event.place ? <span>· {event.place}</span> : null}
       </div>
       <CounterBlock
         count={event.count}
@@ -127,7 +135,7 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
             kind="secondary"
             size="md"
             fullWidth
-            onClick={() => setRsvp(event.id, true)}
+            onClick={onRsvp}
           >
             Я йду
           </Btn>

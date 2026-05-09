@@ -6,14 +6,15 @@ import { EventCardV2 } from "@/components/shared/EventCardV2";
 import { HeartIcon } from "@/components/icons";
 import { DesktopNav } from "./DesktopNav";
 import { Overlays } from "@/components/sheets/Overlays";
-import { EVENTS } from "@/data/events";
+import { useEvents } from "@/lib/useEvents";
 import { useEventsStore } from "@/lib/store";
 import { useMounted } from "@/lib/useMounted";
 
 export function DesktopSavedShell() {
   const mounted = useMounted();
   const savedIds = useEventsStore((s) => s.savedIds);
-  const saved = mounted ? EVENTS.filter((e) => savedIds.includes(e.id)) : [];
+  const { events } = useEvents();
+  const saved = mounted ? events.filter((e) => savedIds.includes(e.id)) : [];
   const filled = saved.length > 0;
 
   return (

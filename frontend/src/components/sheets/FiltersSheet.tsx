@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Btn } from "@/components/atoms/Btn";
 import { CalIcon, CheckIcon, CloseIcon } from "@/components/icons";
-import { EVENTS } from "@/data/events";
+import { useEvents } from "@/lib/useEvents";
 
 // ─── Filter schema ────────────────────────────────────────────
 //
@@ -156,7 +156,9 @@ const EMPTY_STATE: FiltersState = {
   customDate: null,
 };
 
-// Match-count copy (1 / 2-4 / 5+). EVENTS has 8 records so this is enough.
+// Match-count copy (1 / 2-4 / 5+). The actual count is sourced from the
+// live events list once the API responds; we only use this as a tiny
+// pluralisation helper.
 function matchPlural(n: number): string {
   if (n === 1) return "подію";
   if (n < 5) return "події";
@@ -223,6 +225,7 @@ function Chip({
 
 export function FiltersSheet({ onClose }: { onClose: () => void }) {
   const [state, setState] = useState<FiltersState>(INITIAL_STATE);
+  const { events } = useEvents();
 
   const reset = () => setState(EMPTY_STATE);
 
@@ -258,12 +261,13 @@ export function FiltersSheet({ onClose }: { onClose: () => void }) {
     state.comfort.size +
     (state.customDate ? 1 : 0);
 
-  // Stub heuristic — every active filter shaves off a fraction of EVENTS,
-  // floor at 1 so the CTA never says "0 подій". Real backend will replace
-  // this with a count from the search query.
+  // Stub heuristic — every active filter shaves off a fraction of the
+  // currently-loaded events, floor at 1 so the CTA never says "0 подій".
+  // A future iteration will issue a `count`-only request that respects the
+  // selected filters; for now we just react to the live events array.
   const matchCount = Math.max(
     1,
-    EVENTS.length - Math.floor(totalActive / 1.5),
+    events.length - Math.floor(totalActive / 1.5),
   );
 
   const onPickCustomDate = () => {

@@ -17,14 +17,32 @@ const BADGE_COLORS: Record<string, PillColor> = {
   "Без зйомки": "grey",
   "Малий формат": "blue",
   "Безкоштовно": "amber",
+  "Безкоштовно для своїх": "amber",
+  "Безкоштовно для УБД": "amber",
+  "Через держпрограму": "amber",
+  "Знижка для ветеранів": "amber",
+  "Платно": "rose",
   "Жінки-ветеранки": "rose",
+  "Тільки УБД": "sand",
+  "Можна з дітьми": "green",
+  "Поруч укриття": "grey",
+  "18+": "rose",
   "Мікс": "grey",
 };
 
+// Map the 9 API categories onto the 3-color pin palette already in the
+// design (green/blue/amber). Anything we don't know about falls through
+// to a neutral grey pill.
 const CAT_PILL_COLOR: Record<string, PillColor> = {
   sport: "green",
+  yoga: "green",
+  rehabilitation: "green",
   culture: "blue",
+  education: "blue",
+  spa: "blue",
   social: "amber",
+  psychology: "amber",
+  nature: "amber",
 };
 
 /**
@@ -139,7 +157,7 @@ export function EventCardV2({
             >
               <PinIcon size={13} />
               <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                {event.place} · {event.distance}
+                {event.distance ? `${event.place} · ${event.distance}` : event.place}
               </span>
             </div>
           </div>

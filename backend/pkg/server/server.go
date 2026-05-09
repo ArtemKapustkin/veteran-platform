@@ -62,8 +62,34 @@ func (s *Server) handler() fasthttp.RequestHandler {
 				s.recover(ctx, r)
 			}
 		}()
+		applyCORS(ctx)
+		if string(ctx.Method()) == fasthttp.MethodOptions {
+			ctx.SetStatusCode(fasthttp.StatusNoContent)
+			return
+		}
 		s.router.Handler(ctx)
 	}
+}
+
+// applyCORS reflects the request Origin (any origin allowed in dev) and
+// advertises the headers/methods used by the SPA. Mutating, JSON-bodied
+// requests trigger preflights, so we must answer OPTIONS unconditionally.
+func applyCORS(ctx *fasthttp.RequestCtx) {
+	origin := string(ctx.Request.Header.Peek("Origin"))
+	if origin == "" {
+		origin = "*"
+	}
+	h := &ctx.Response.Header
+	h.Set("Access-Control-Allow-Origin", origin)
+	h.Set("Vary", "Origin")
+	h.Set("Access-Control-Allow-Credentials", "true")
+	h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+	reqHeaders := string(ctx.Request.Header.Peek("Access-Control-Request-Headers"))
+	if reqHeaders == "" {
+		reqHeaders = "Authorization, Content-Type, Accept"
+	}
+	h.Set("Access-Control-Allow-Headers", reqHeaders)
+	h.Set("Access-Control-Max-Age", "600")
 }
 
 func (s *Server) recover(ctx *fasthttp.RequestCtx, r any) {

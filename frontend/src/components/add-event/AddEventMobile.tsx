@@ -20,12 +20,14 @@ export function AddEventMobile({
   step,
   setStep,
   onSubmit,
+  submitting = false,
 }: {
   draft: EventDraft;
   setDraft: Dispatch<SetStateAction<EventDraft>>;
   step: FormStep["id"];
   setStep: Dispatch<SetStateAction<FormStep["id"]>>;
   onSubmit: () => void;
+  submitting?: boolean;
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const isLast = step === STEPS.length;
@@ -104,10 +106,11 @@ export function AddEventMobile({
           kind="primary"
           size="md"
           onClick={next}
+          disabled={isLast && submitting}
           iconRight={!isLast ? <ArrowIcon size={15} /> : undefined}
           style={{ minWidth: isLast ? 140 : 120 }}
         >
-          {isLast ? "Опублікувати" : "Далі"}
+          {isLast ? (submitting ? "Надсилаємо…" : "Опублікувати") : "Далі"}
         </Btn>
       </div>
 

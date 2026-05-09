@@ -2,7 +2,10 @@ package application
 
 import (
 	"context"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
@@ -12,6 +15,11 @@ import (
 	"github.com/ArtemKapustkin/veteran-platform/backend/internal/view"
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/apperrors"
 )
+
+// attendeesPerEvent caps how many avatar summaries we ship per event. The
+// card UI renders ~5 avatars + a "+N" overflow; 8 gives a small buffer
+// for the detail page.
+const attendeesPerEvent = 8
 
 type EventService struct {
 	db     *bun.DB
@@ -179,6 +187,9 @@ func (s *EventService) Get(ctx context.Context, id uuid.UUID, viewerID *uuid.UUI
 		return nil, apperrors.NewNotFoundError("event not found")
 	}
 	detail := view.FromEventDetail(e)
+	if err := s.attachAttendees(ctx, []*view.Event{detail.Event}); err != nil {
+		return nil, err
+	}
 	if viewerID != nil {
 		reg, err := s.regs.FindActiveByEventAndVeteran(ctx, id, *viewerID)
 		if err != nil {
@@ -196,7 +207,11 @@ func (s *EventService) ListPublic(ctx context.Context, f repository.ListFilters)
 	if err != nil {
 		return nil, err
 	}
-	return mapPage(rows), nil
+	page := mapPage(rows)
+	if err := s.attachAttendees(ctx, page.Items); err != nil {
+		return nil, err
+	}
+	return page, nil
 }
 
 func (s *EventService) ListAdmin(ctx context.Context, f repository.ListFilters) (*view.EventPage, error) {
@@ -204,7 +219,48 @@ func (s *EventService) ListAdmin(ctx context.Context, f repository.ListFilters) 
 	if err != nil {
 		return nil, err
 	}
-	return mapPage(rows), nil
+	page := mapPage(rows)
+	if err := s.attachAttendees(ctx, page.Items); err != nil {
+		return nil, err
+	}
+	return page, nil
+}
+
+// attachAttendees fetches the public attendee summaries for every event
+// in `items` in a single round-trip and attaches them to the corresponding
+// view structs. Skipped silently when `items` is empty.
+func (s *EventService) attachAttendees(ctx context.Context, items []*view.Event) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, 0, len(items))
+	byID := make(map[uuid.UUID]*view.Event, len(items))
+	for _, e := range items {
+		if e == nil {
+			continue
+		}
+		ids = append(ids, e.ID)
+		byID[e.ID] = e
+		// Pre-allocate so empty events end up with `[]` not `null` in JSON.
+		e.Attendees = []view.EventAttendee{}
+	}
+	rows, err := s.regs.ListAttendeeSummaries(ctx, ids, attendeesPerEvent)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		ev, ok := byID[row.EventID]
+		if !ok {
+			continue
+		}
+		ev.Attendees = append(ev.Attendees, view.EventAttendee{
+			VeteranID:      row.VeteranID,
+			Initial:        firstInitial(row.Fullname),
+			FirstName:      firstName(row.Fullname),
+			AudienceStatus: row.AudienceStatus,
+		})
+	}
+	return nil
 }
 
 type UpdateEventInput struct {
@@ -384,4 +440,35 @@ func mapPage(rows []model.Event) *view.EventPage {
 		Items:      items,
 		Pagination: view.Pagination{NextCursor: nil},
 	}
+}
+
+// firstInitial returns the uppercase first letter of the fullname, or "С"
+// (for "Свій") as a generic fallback so we never render an empty avatar.
+func firstInitial(fullname *string) string {
+	if fullname == nil {
+		return "С"
+	}
+	trimmed := strings.TrimSpace(*fullname)
+	if trimmed == "" {
+		return "С"
+	}
+	r, _ := utf8.DecodeRuneInString(trimmed)
+	return string(unicode.ToUpper(r))
+}
+
+// firstName returns the first whitespace-separated token of the full name
+// — what we actually want to show next to the avatar ("Іван", not the
+// full "Іван Петренко"). Empty if no fullname is set.
+func firstName(fullname *string) string {
+	if fullname == nil {
+		return ""
+	}
+	trimmed := strings.TrimSpace(*fullname)
+	if trimmed == "" {
+		return ""
+	}
+	if i := strings.IndexFunc(trimmed, unicode.IsSpace); i > 0 {
+		return trimmed[:i]
+	}
+	return trimmed
 }

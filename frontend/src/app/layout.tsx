@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ResponsiveStage } from "@/components/ResponsiveStage";
 import { A11yBoot } from "@/components/A11yBoot";
+import { SessionBoot } from "@/components/SessionBoot";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -34,6 +35,7 @@ export default function RootLayout({
     <html lang="uk" className={`${inter.variable} text-size-md`}>
       <body>
         <A11yBoot />
+        <SessionBoot />
         <ResponsiveStage>{children}</ResponsiveStage>
       </body>
     </html>

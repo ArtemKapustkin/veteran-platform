@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { EVENTS } from "@/data/events";
+import { useEvents } from "@/lib/useEvents";
 
 type SortKey = "date" | "distance";
 
 export function DesktopHeader() {
   const [sort, setSort] = useState<SortKey>("date");
+  const { events, loading } = useEvents();
 
   return (
     <div className="px-7 pt-6 pb-3">
@@ -17,7 +18,7 @@ export function DesktopHeader() {
         Події у Києві
       </h1>
       <div className="text-text2 mt-1.5" style={{ fontSize: 14 }}>
-        {EVENTS.length} подій цього тижня
+        {loading ? "Завантаження…" : `${events.length} подій цього тижня`}
       </div>
       <div className="mt-3.5 flex items-center gap-2">
         <div

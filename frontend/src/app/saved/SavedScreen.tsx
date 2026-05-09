@@ -8,7 +8,7 @@ import { EventCardV2 } from "@/components/shared/EventCardV2";
 import { AccountGuest } from "@/components/account/AccountGuest";
 import { Overlays } from "@/components/sheets/Overlays";
 import { HeartIcon } from "@/components/icons";
-import { EVENTS } from "@/data/events";
+import { useEvents } from "@/lib/useEvents";
 import { useAuthStore, useEventsStore } from "@/lib/store";
 import { useMounted } from "@/lib/useMounted";
 
@@ -16,6 +16,7 @@ export function SavedScreen() {
   const mounted = useMounted();
   const loggedIn = useAuthStore((s) => s.loggedIn);
   const savedIds = useEventsStore((s) => s.savedIds);
+  const { events } = useEvents();
   const isLoggedIn = mounted && loggedIn;
 
   // Збережені requires auth — guests get the account login prompt instead
@@ -39,7 +40,7 @@ export function SavedScreen() {
     );
   }
 
-  const saved = EVENTS.filter((e) => savedIds.includes(e.id));
+  const saved = events.filter((e) => savedIds.includes(e.id));
   const filled = saved.length > 0;
 
   return (

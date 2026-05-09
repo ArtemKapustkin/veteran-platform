@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, type ReactNode } from "react";
-import { getEventById } from "@/data/events";
+import { useEvent } from "@/lib/useEvents";
 import { EventSheet } from "./EventSheet";
 import { FiltersSheet } from "./FiltersSheet";
 import { AccessibilityDrawer } from "./AccessibilityDrawer";
@@ -71,11 +71,10 @@ export function Overlays({
   return (
     <>
       {showEventSheet && eventId ? (
-        (() => {
-          const event = getEventById(eventId);
-          if (!event) return null;
-          return <EventSheet event={event} onClose={() => close("event")} />;
-        })()
+        <FocusedEventSheet
+          id={eventId}
+          onClose={() => close("event")}
+        />
       ) : null}
       {filters ? (
         desktop ? (
@@ -89,6 +88,18 @@ export function Overlays({
       {a11y ? <AccessibilityDrawer onClose={() => close("a11y")} /> : null}
     </>
   );
+}
+
+function FocusedEventSheet({
+  id,
+  onClose,
+}: {
+  id: string;
+  onClose: () => void;
+}) {
+  const { event } = useEvent(id);
+  if (!event) return null;
+  return <EventSheet event={event} onClose={onClose} />;
 }
 
 /**

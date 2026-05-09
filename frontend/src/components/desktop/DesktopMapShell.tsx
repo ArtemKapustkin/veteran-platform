@@ -12,7 +12,8 @@ import { MapCanvas } from "@/components/map/MapCanvas";
 import { PinLayer } from "@/components/map/PinLayer";
 import { Overlays } from "@/components/sheets/Overlays";
 import { CATEGORIES } from "@/data/categories";
-import { EVENTS, KYIV_CENTER, getEventById } from "@/data/events";
+import { KYIV_CENTER } from "@/data/events";
+import { useEvents } from "@/lib/useEvents";
 
 /** Zoom + animation tuning for the card → pin "fly to" effect. */
 const FOCUS_ZOOM = 14;
@@ -34,12 +35,14 @@ export function DesktopMapShell({
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  const eventIdParam = params.get("event");
-  const focusedId = eventIdParam ? Number(eventIdParam) : null;
-  const focused = focusedId != null ? getEventById(focusedId) : undefined;
+  const focusedId = params.get("event");
+  const { events } = useEvents();
+  const focused = focusedId
+    ? events.find((e) => e.id === focusedId)
+    : undefined;
   const mapRef = useRef<MapRef>(null);
 
-  const onCardSelect = (id: number) => {
+  const onCardSelect = (id: string) => {
     // Stay in the split-view shell: just focus the pin via ?event=.
     // If we're on /list (listOnly), navigate to /map so the right column appears.
     const target = listOnly ? "/map" : window.location.pathname;
@@ -85,7 +88,7 @@ export function DesktopMapShell({
               gridAutoRows: "min-content",
             }}
           >
-            {EVENTS.map((e) => (
+            {events.map((e) => (
               <EventCardV2
                 key={e.id}
                 event={e}
@@ -108,7 +111,7 @@ export function DesktopMapShell({
               latitude={focused?.location.lat ?? KYIV_CENTER.lat}
               zoom={focused ? FOCUS_ZOOM : 11.4}
             >
-              <PinLayer events={EVENTS} focusedId={focusedId} />
+              <PinLayer events={events} focusedId={focusedId} />
             </MapCanvas>
 
             <div

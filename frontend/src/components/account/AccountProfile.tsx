@@ -8,44 +8,70 @@ import { Pill } from "@/components/atoms/Pill";
 import { StatBlock } from "@/components/atoms/StatBlock";
 import { EventCardV2 } from "@/components/shared/EventCardV2";
 import { AccessIcon } from "@/components/icons";
-import { EVENTS } from "@/data/events";
-import { useAuthStore, useEventsStore } from "@/lib/store";
+import { useEvents } from "@/lib/useEvents";
+import {
+  logoutCurrentUser,
+  useAuthStore,
+  useEventsStore,
+} from "@/lib/store";
 import { useMounted } from "@/lib/useMounted";
 
 /**
- * Logged-in account view (S12). Mocked profile + three stats + four
- * sections. RSVP/saved IDs come from the real Zustand store; the rest of
- * the profile (name, avatar, status pill) is stubbed pending real auth.
+ * Logged-in account view (S12). Profile data comes from the persisted
+ * `/me` payload in the auth store; the upcoming/saved sections filter
+ * the live events list against the user's registrations and bookmarks.
  */
 export function AccountProfile() {
   const router = useRouter();
   const mounted = useMounted();
-  const logout = useAuthStore((s) => s.logout);
+  const veteran = useAuthStore((s) => s.veteran);
+  const role = useAuthStore((s) => s.role);
 
   const rsvpIds = useEventsStore((s) => s.rsvpIds);
   const savedIds = useEventsStore((s) => s.savedIds);
 
+  const { events } = useEvents();
+
   const upcoming = mounted
-    ? EVENTS.filter((e) => rsvpIds.includes(e.id))
+    ? events.filter((e) => rsvpIds.includes(e.id))
     : [];
   const saved = mounted
-    ? EVENTS.filter((e) => savedIds.includes(e.id) && !rsvpIds.includes(e.id))
+    ? events.filter((e) => savedIds.includes(e.id) && !rsvpIds.includes(e.id))
     : [];
-  // Demo "past events" — we don't track attendance history yet, so show a
-  // single example so the section isn't empty for first-time users.
-  const past = EVENTS.slice(7, 8);
+  // Past events aren't tracked yet — keep the section empty rather than
+  // showing a fake row so the count is honest.
+  const past: typeof events = [];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logoutCurrentUser();
     router.push("/");
   };
+
+  const displayName =
+    veteran?.fullname?.trim() ||
+    (role === "admin" ? "Адмін" : "Ветеран");
+  const initial = displayName.charAt(0).toUpperCase() || "С";
+
+  const cityLabel = veteran?.city ? `${veteran.city} · ` : "";
+  const joinedLabel = veteran?.created_at
+    ? `з ${formatJoined(veteran.created_at)}`
+    : "";
+
+  const statusLabel =
+    role === "admin"
+      ? "Адміністратор"
+      : veteran?.verified
+        ? "Ветеран · УБД підтверджений"
+        : veteran?.verification_status === "processing"
+          ? "Документи на перевірці"
+          : "Ветеран · непідтверджений";
 
   return (
     <div className="bg-bg flex-1 overflow-auto">
       <div className="mx-auto w-full max-w-[1100px] px-5 pt-8 pb-24 sm:px-8 sm:pt-10 sm:pb-15">
         {/* Profile header */}
         <header className="mb-9 flex flex-wrap items-center gap-4.5">
-          <Avatar initial="О" tone="sand" size={72} />
+          <Avatar initial={initial} tone="sand" size={72} />
           <div className="min-w-[200px] flex-1">
             <div
               className="text-text"
@@ -55,13 +81,16 @@ export function AccountProfile() {
                 letterSpacing: "-0.03em",
               }}
             >
-              Олег
+              {displayName}
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-              <Pill color="sand">Ветеран · УБД підтверджений</Pill>
-              <span className="text-text2" style={{ fontSize: 13 }}>
-                Київ · з квітня 2026
-              </span>
+              <Pill color="sand">{statusLabel}</Pill>
+              {(cityLabel || joinedLabel) && (
+                <span className="text-text2" style={{ fontSize: 13 }}>
+                  {cityLabel}
+                  {joinedLabel}
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -120,20 +149,33 @@ export function AccountProfile() {
             )}
           </Section>
 
-          <Section
-            title="Уже відвідав"
-            hint="Минулі події. Ти був там — і твоє ім’я теж рахувалось"
-          >
-            {past.map((e) => (
-              <EventCardV2 key={e.id} event={{ ...e, distance: "минула" }} />
-            ))}
-          </Section>
+          {past.length > 0 ? (
+            <Section
+              title="Уже відвідав"
+              hint="Минулі події. Ти був там — і твоє ім’я теж рахувалось"
+            >
+              {past.map((e) => (
+                <EventCardV2 key={e.id} event={{ ...e, distance: "минула" }} />
+              ))}
+            </Section>
+          ) : null}
 
           <AccessibilityCard />
         </div>
       </div>
     </div>
   );
+}
+
+const MONTHS_GENITIVE = [
+  "січня", "лютого", "березня", "квітня", "травня", "червня",
+  "липня", "серпня", "вересня", "жовтня", "листопада", "грудня",
+] as const;
+
+function formatJoined(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${MONTHS_GENITIVE[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function Section({

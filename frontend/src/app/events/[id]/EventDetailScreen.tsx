@@ -42,6 +42,14 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
     );
   };
 
+  const handleRsvp = async (on: boolean) => {
+    try {
+      await setRsvp(event.id, on);
+    } catch (e) {
+      window.alert(`Не вдалось оформити запис: ${(e as Error).message}`);
+    }
+  };
+
   const meta = CATEGORIES[event.category];
 
   return (
@@ -207,7 +215,7 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
             <Btn
               kind="ghost"
               size="md"
-              onClick={() => setRsvp(event.id, false)}
+              onClick={() => handleRsvp(false)}
               className="text-text2 px-2.5"
             >
               Скасувати
@@ -228,7 +236,7 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
             <Btn
               kind="secondary"
               size="lg"
-              onClick={() => setRsvp(event.id, true)}
+              onClick={() => handleRsvp(true)}
               className="px-4.5"
             >
               Я йду

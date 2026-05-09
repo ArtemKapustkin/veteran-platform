@@ -10,12 +10,14 @@ import { MapCanvas } from "@/components/map/MapCanvas";
 import { PinLayer } from "@/components/map/PinLayer";
 import { Overlays } from "@/components/sheets/Overlays";
 import { FilterIcon } from "@/components/icons";
-import { EVENTS, KYIV_CENTER } from "@/data/events";
+import { KYIV_CENTER } from "@/data/events";
+import { useEvents } from "@/lib/useEvents";
 
 export function MapScreen() {
   const router = useRouter();
   const params = useSearchParams();
-  const focusedId = params.get("event") ? Number(params.get("event")) : null;
+  const focusedId = params.get("event");
+  const { events } = useEvents();
 
   const onFilters = () => {
     const url = new URL(window.location.href);
@@ -34,7 +36,7 @@ export function MapScreen() {
         latitude={KYIV_CENTER.lat}
         zoom={11.4}
       >
-        <PinLayer events={EVENTS} focusedId={focusedId} />
+        <PinLayer events={events} focusedId={focusedId} />
       </MapCanvas>
 
       {/* Top sticky chrome — header, search, view toggle */}
