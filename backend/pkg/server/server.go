@@ -31,7 +31,10 @@ func New(lc fx.Lifecycle, cfg *config.Config, log *logger.Logger, r *fhrouter.Ro
 		port:   cfg.HTTPPort,
 		log:    log,
 	}
-	s.http = &fasthttp.Server{Handler: s.handler()}
+	s.http = &fasthttp.Server{
+		Handler:            s.handler(),
+		MaxRequestBodySize: 16 * 1024 * 1024,
+	}
 
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {

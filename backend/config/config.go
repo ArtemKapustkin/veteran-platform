@@ -28,6 +28,9 @@ type Config struct {
 	TwilioSID   string `env:"TWILIO_ACCOUNT_SID" envDefault:""`
 	TwilioToken string `env:"TWILIO_AUTH_TOKEN" envDefault:""`
 	TwilioFrom  string `env:"TWILIO_FROM" envDefault:""`
+
+	OpenAIKey   string `env:"OPENAI_API_KEY" envDefault:""`
+	OpenAIModel string `env:"OPENAI_MODEL" envDefault:"gpt-4o"`
 }
 
 func Load() (*Config, error) {
