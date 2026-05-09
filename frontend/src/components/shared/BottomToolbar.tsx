@@ -1,21 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  FilterIcon,
-  GearIcon,
-  HeartIcon,
-  ListIcon,
-  PinIcon,
-} from "@/components/icons";
+import { GearIcon, HeartIcon, PinIcon } from "@/components/icons";
 import type { ReactNode } from "react";
 
-export type ToolbarTab = "filters" | "map" | "list" | "saved" | "settings";
+/**
+ * Active tab the parent screen reports. The toolbar only renders three
+ * primary destinations (Події / Збережені / Налаштування) — `"list"` lights
+ * up the same "Події" tab as `"map"` so map↔list lives inside the screen
+ * via the ViewToggle, not here.
+ */
+export type ToolbarTab = "map" | "list" | "saved" | "settings";
 
-const ITEMS: { id: ToolbarTab; label: string; icon: ReactNode }[] = [
-  { id: "filters",  label: "Фільтри",   icon: <FilterIcon size={22} /> },
-  { id: "map",      label: "Карта",     icon: <PinIcon size={22} /> },
-  { id: "list",     label: "Список",    icon: <ListIcon size={22} /> },
+type ToolbarItemId = "map" | "saved" | "settings";
+
+const ITEMS: { id: ToolbarItemId; label: string; icon: ReactNode }[] = [
+  { id: "map",      label: "Події",     icon: <PinIcon size={22} /> },
   { id: "saved",    label: "Збережені", icon: <HeartIcon size={22} /> },
   { id: "settings", label: "Налашт.",   icon: <GearIcon size={22} /> },
 ];
@@ -23,23 +23,14 @@ const ITEMS: { id: ToolbarTab; label: string; icon: ReactNode }[] = [
 export function BottomToolbar({ active }: { active: ToolbarTab }) {
   const router = useRouter();
 
-  const handle = (id: ToolbarTab) => {
+  const handle = (id: ToolbarItemId) => {
     switch (id) {
       case "map":
         router.push("/map");
         break;
-      case "list":
-        router.push("/list");
-        break;
       case "saved":
         router.push("/saved");
         break;
-      case "filters": {
-        const url = new URL(window.location.href);
-        url.searchParams.set("filters", "1");
-        router.push(url.pathname + url.search, { scroll: false });
-        break;
-      }
       case "settings": {
         const url = new URL(window.location.href);
         url.searchParams.set("a11y", "1");
@@ -60,14 +51,15 @@ export function BottomToolbar({ active }: { active: ToolbarTab }) {
       }}
     >
       {ITEMS.map((it) => {
-        const on = it.id === active;
+        const on =
+          it.id === active || (it.id === "map" && active === "list");
         return (
           <button
             key={it.id}
             type="button"
             onClick={() => handle(it.id)}
             aria-current={on ? "page" : undefined}
-            className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1"
+            className="flex flex-col items-center gap-0.5 rounded-xl px-4 py-1"
             style={{ color: on ? "var(--color-text)" : "var(--color-text2)" }}
           >
             {it.icon}
