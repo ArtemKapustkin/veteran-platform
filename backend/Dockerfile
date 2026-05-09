@@ -13,6 +13,6 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /backend /backend
 
-EXPOSE 8080
+EXPOSE 8088
 ENTRYPOINT ["/backend"]
 CMD ["serve"]
