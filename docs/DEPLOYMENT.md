@@ -9,42 +9,51 @@ How to run the platform on the public internet, given:
 ## Architecture
 
 ```
-┌─────────────────────┐                     ┌──────────────────────┐
-│ Browser / mobile    │                     │ veteran-platform.gov.ua
-│                     │                     │   (Cloudflare DNS)    │
-└──────────┬──────────┘                     └──────────┬────────────┘
-           │                                           │
-           │ https://app.veteran-platform.gov.ua       │
-           ▼                                           │
-┌─────────────────────┐                                │
-│ Vercel              │                                │
-│ Next.js frontend    │                                │
-└──────────┬──────────┘                                │
-           │ XHR                                       │
-           │ https://api.veteran-platform.gov.ua       │
-           ▼                                           │
-┌─────────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│ Fly.io              │→ │ Twilio API       │  │ OpenAI Platform  │
-│ Backend (Dockerised)│  │ (SMS)            │  │ (Vision)         │
-└──────────┬──────────┘  └──────────────────┘  └──────────────────┘
-           │
-           │ TLS (libpq)
-           ▼
 ┌─────────────────────┐
-│ Neon                │
-│ Managed Postgres    │
-│ (EU region)         │
-└─────────────────────┘
+│ Browser / mobile    │
+└──────────┬──────────┘
+           │
+           ├──── https://app.veteran-platform.gov.ua  ─────┐
+           │            (DNS + TLS by Vercel)              │
+           │                                               ▼
+           │                                       ┌────────────────┐
+           │                                       │ Vercel         │
+           │                                       │ Next.js        │
+           │                                       └────────┬───────┘
+           │                                                │ XHR
+           │ ◄──────────────────────────────────────────────┘
+           │
+           ├──── https://api.veteran-platform.gov.ua ──────┐
+           │            (DNS by Vercel,                    │
+           │             TLS by Fly.io / Let's Encrypt)    │
+           ▼                                               ▼
+   ┌─────────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+   │ Fly.io              │→ │ Twilio API       │  │ OpenAI Platform  │
+   │ Backend (Dockerised)│  │ (SMS)            │  │ (Vision)         │
+   └──────────┬──────────┘  └──────────────────┘  └──────────────────┘
+              │
+              │ TLS (libpq, sslmode=require)
+              ▼
+   ┌─────────────────────┐
+   │ Neon                │
+   │ Managed Postgres    │
+   │ (EU region)         │
+   └─────────────────────┘
 ```
+
+Vercel is the single DNS authority for the apex and both subdomains.
+For `app.*` it terminates TLS itself; for `api.*` the CNAME points to
+Fly.io which terminates TLS via its own Let's Encrypt cert. No
+intermediate CDN needed unless you want one (see "Optional: Cloudflare"
+below).
 
 ## Recommended stack
 
 | Layer        | Service        | Why                                                                        |
 |--------------|----------------|----------------------------------------------------------------------------|
-| Frontend     | **Vercel**     | Already chosen. Free for Hobby; instant Next.js deploys; preview branches. |
-| Backend      | **Fly.io**     | Deploy a Dockerfile in 60s (`fly launch`). EU regions including Warsaw (`waw`) for low UA latency. Free allowance covers a small instance; ~$5–10/mo per machine after. Auto-TLS, secrets manager, easy multi-region scale. |
+| Frontend     | **Vercel**     | Already chosen. Free for Hobby; instant Next.js deploys; preview branches. **Also acts as the DNS authority** for the apex + both subdomains. |
+| Backend      | **Fly.io**     | Deploy a Dockerfile in 60s (`fly launch`). EU regions including Warsaw (`waw`) for low UA latency. Free allowance covers a small instance; ~$5–10/mo per machine after. Auto-TLS via Let's Encrypt, secrets manager, easy multi-region scale. |
 | Database     | **Neon**       | Serverless Postgres with branching (instant staging copies for migration testing). EU regions. Free tier 512 MB; ~$19/mo for production. PITR built in. |
-| DNS + TLS    | **Cloudflare** | Free; DDoS protection; Ukraine PoPs; lets you front both Vercel and Fly.io with one apex domain. |
 | SMS          | **Twilio**     | Already coded. Trial works for verified numbers; ~$0.025/SMS to Ukraine after upgrade. |
 | AI vision    | **OpenAI**     | Already coded. ~$0.005 per verification with `gpt-4o`. |
 | Errors       | Sentry (opt.)  | 5k events/mo free. |
@@ -122,11 +131,15 @@ public deploy. Each is small.
 7. Bootstrap the first admin: SSH in and run `./backend promote-admin
    +380XXXXXXXXX`. After that, the admin can sign in with their phone
    and the access token will carry admin claims.
-8. Configure Cloudflare DNS:
-   - `app` → Vercel (CNAME to `cname.vercel-dns.com`, proxied)
-   - `api` → Fly.io (CNAME to `your-app.fly.dev`, proxied with full TLS)
-9. In Vercel project settings, add `app.veteran-platform.gov.ua`
-   custom domain. Set `NEXT_PUBLIC_API_BASE=https://api.veteran-platform.gov.ua`.
+8. **DNS via Vercel.** In the Vercel project for the frontend:
+   - Add `veteran-platform.gov.ua` (apex) and `app.veteran-platform.gov.ua`
+     as custom domains. Vercel issues TLS certificates and routes traffic
+     to the Next.js deployment automatically.
+   - Under **Domains → DNS Records**, add a `CNAME` for `api` pointing
+     to `your-app.fly.dev`. Fly.io's Let's Encrypt cert covers TLS for
+     this hostname (run `flyctl certs create api.veteran-platform.gov.ua`
+     to provision it).
+9. In Vercel env vars, set `NEXT_PUBLIC_API_BASE=https://api.veteran-platform.gov.ua`.
 
 ### Each deploy
 
@@ -153,14 +166,43 @@ reasons, swap Fly.io for a Ukrainian VPS (e.g. **Hetzner Helsinki + a
 Ukrainian peering**, or De Novo / Tucha if a Ukrainian provider is
 required). The Dockerfile is already platform-agnostic.
 
+## Optional: Cloudflare in front of `api.*`
+
+Vercel handles DNS and TLS perfectly for the basic case. Add Cloudflare
+between the browser and Fly.io only if you need one of:
+
+- **DDoS protection** beyond Fly.io's defaults — useful once the platform
+  is public-facing and tied to a government brand.
+- **WAF rules** (rate limit by URL path, block by country, challenge
+  bots) — Cloudflare's free tier covers basic rules; Pro ($20/mo) adds
+  the full WAF.
+- **Edge caching** of public endpoints (`GET /events`,
+  `GET /reference/*`). Currently the backend serves these uncached;
+  putting Cloudflare in front and adding `Cache-Control` headers would
+  cut load and latency.
+
+If you add Cloudflare, you have two choices:
+
+1. **Move DNS authority entirely to Cloudflare** (point the registrar's
+   nameservers at Cloudflare) — then Vercel uses Cloudflare's DNS via
+   external records, and `api` is a proxied CNAME. Slightly more setup,
+   gives you the Cloudflare dashboard for everything.
+2. **Keep DNS on Vercel and put Cloudflare only in front of `api.*`** —
+   harder to configure (you'd use Cloudflare-as-CDN-only mode with a
+   different hostname), and not worth it. If you go Cloudflare, prefer
+   option 1.
+
+For a v1 launch, skip Cloudflare. Add it once you see real traffic and
+have a reason.
+
 ## Cost (rough monthly)
 
 | Item | Hobby | Production |
 |---|---|---|
 | Fly.io backend | $0 (free tier) | $10 (1× shared-cpu-1x with 1 GB) |
 | Neon Postgres  | $0 (512 MB) | $19 (10 GB, autoscaling) |
-| Cloudflare     | $0 | $0 |
-| Vercel         | $0 | $20 (Pro, custom domain SLA) |
+| Vercel         | $0 | $20 (Pro, custom domain SLA, includes DNS) |
+| Cloudflare *(optional)* | $0 | $0 (free tier) — $20 if you want full WAF |
 | Twilio SMS     | usage | $0.025 × #SMS |
 | OpenAI Vision  | usage | $0.005 × #verifications |
 | **Fixed**      | **$0** | **~$50/mo** + per-message and per-verification |
