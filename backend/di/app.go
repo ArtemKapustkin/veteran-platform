@@ -35,16 +35,19 @@ func App() fx.Option {
 			repository.NewOtpRepository,
 			repository.NewRefreshTokenRepository,
 			repository.NewEventRepository,
+			repository.NewRegistrationRepository,
 
 			application.NewAuthService,
 			application.NewVeteranService,
 			application.NewEventService,
+			application.NewRegistrationService,
 
 			http_handler.NewHealthHandler,
 			http_handler.NewAuthHandler,
 			http_handler.NewMeHandler,
 			http_handler.NewEventHandler,
 			http_handler.NewAdminEventHandler,
+			http_handler.NewRegistrationHandler,
 		),
 		fx.Invoke(
 			http_handler.RegisterHealthHandler,
@@ -52,6 +55,8 @@ func App() fx.Option {
 			http_handler.RegisterMeHandler,
 			http_handler.RegisterEventHandler,
 			http_handler.RegisterAdminEventHandler,
+			http_handler.RegisterRegistrationHandler,
+			application.StartRegistrationExpirer,
 			func(*server.Server) {},
 		),
 	)

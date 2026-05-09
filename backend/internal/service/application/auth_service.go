@@ -80,7 +80,7 @@ func (s *AuthService) RequestOTP(ctx context.Context, phone string) error {
 	if err := s.otpCodes.Create(ctx, record); err != nil {
 		return err
 	}
-	if err := s.otpSender.Send(ctx, phone, code); err != nil {
+	if err := s.otpSender.SendCode(ctx, phone, code); err != nil {
 		s.log.Warn("OTP send failed", "phone", phone, "err", err.Error())
 		return apperrors.NewInternalError("failed to send OTP")
 	}

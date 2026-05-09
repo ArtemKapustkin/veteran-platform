@@ -5,22 +5,35 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/valyala/fasthttp"
 
+	"github.com/ArtemKapustkin/veteran-platform/backend/internal/repository"
 	"github.com/ArtemKapustkin/veteran-platform/backend/internal/service/application"
+	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/apperrors"
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/server"
 )
 
 type MeHandler struct {
-	veteran *application.VeteranService
-	auth    *server.AuthMiddleware
+	veteran  *application.VeteranService
+	regs     *application.RegistrationService
+	veterans *repository.VeteranRepository
+	auth     *server.AuthMiddleware
 }
 
-func NewMeHandler(veteran *application.VeteranService, auth *server.AuthMiddleware) *MeHandler {
-	return &MeHandler{veteran: veteran, auth: auth}
+func NewMeHandler(
+	veteran *application.VeteranService,
+	regs *application.RegistrationService,
+	veterans *repository.VeteranRepository,
+	auth *server.AuthMiddleware,
+) *MeHandler {
+	return &MeHandler{veteran: veteran, regs: regs, veterans: veterans, auth: auth}
 }
 
 func RegisterMeHandler(r *fhrouter.Router, h *MeHandler) {
 	r.GET("/api/v1/me", h.auth.RequireVeteran(h.Get))
 	r.PATCH("/api/v1/me", h.auth.RequireVeteran(h.Update))
+	r.GET("/api/v1/me/registrations", h.auth.RequireVeteran(h.MyRegistrations))
+	r.GET("/api/v1/me/invitations", h.auth.RequireVeteran(h.MyInvitations))
+	r.POST("/api/v1/me/invitations/{invitation_id}/confirm", h.auth.RequireVeteran(h.ConfirmInvitation))
+	r.POST("/api/v1/me/invitations/{invitation_id}/decline", h.auth.RequireVeteran(h.DeclineInvitation))
 }
 
 func (h *MeHandler) Get(ctx *fasthttp.RequestCtx) {
@@ -73,6 +86,68 @@ func (h *MeHandler) Update(ctx *fasthttp.RequestCtx) {
 		City:           req.City,
 		Interests:      req.Interests,
 	})
+	if err != nil {
+		panic(err)
+	}
+	server.RespondJSON(ctx, fasthttp.StatusOK, res)
+}
+
+func (h *MeHandler) MyRegistrations(ctx *fasthttp.RequestCtx) {
+	id := server.VeteranID(ctx)
+	args := ctx.QueryArgs()
+	status := optString(args, "status")
+	limit := optInt(args, "limit")
+	res, err := h.regs.ListMine(ctx, id, status, limit)
+	if err != nil {
+		panic(err)
+	}
+	server.RespondJSON(ctx, fasthttp.StatusOK, res)
+}
+
+func (h *MeHandler) MyInvitations(ctx *fasthttp.RequestCtx) {
+	id := server.VeteranID(ctx)
+	veteran, err := h.veterans.FindByID(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	if veteran == nil {
+		panic(apperrors.NewUnauthorizedError("veteran not found"))
+	}
+	items, err := h.regs.ListInvitations(ctx, veteran)
+	if err != nil {
+		panic(err)
+	}
+	server.RespondJSON(ctx, fasthttp.StatusOK, map[string]any{"items": items})
+}
+
+func (h *MeHandler) ConfirmInvitation(ctx *fasthttp.RequestCtx) {
+	invitationID := pathUUID(ctx, "invitation_id")
+	id := server.VeteranID(ctx)
+	veteran, err := h.veterans.FindByID(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	if veteran == nil {
+		panic(apperrors.NewUnauthorizedError("veteran not found"))
+	}
+	res, err := h.regs.ConfirmInvitation(ctx, invitationID, veteran)
+	if err != nil {
+		panic(err)
+	}
+	server.RespondJSON(ctx, fasthttp.StatusOK, res)
+}
+
+func (h *MeHandler) DeclineInvitation(ctx *fasthttp.RequestCtx) {
+	invitationID := pathUUID(ctx, "invitation_id")
+	id := server.VeteranID(ctx)
+	veteran, err := h.veterans.FindByID(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	if veteran == nil {
+		panic(apperrors.NewUnauthorizedError("veteran not found"))
+	}
+	res, err := h.regs.DeclineInvitation(ctx, invitationID, veteran)
 	if err != nil {
 		panic(err)
 	}

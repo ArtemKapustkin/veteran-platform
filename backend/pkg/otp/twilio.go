@@ -21,8 +21,17 @@ func NewTwilioSender(sid, token, from string) *TwilioSender {
 	return &TwilioSender{client: client, from: from}
 }
 
-func (t *TwilioSender) Send(_ context.Context, phone, code string) error {
+func (t *TwilioSender) SendCode(_ context.Context, phone, code string) error {
 	body := fmt.Sprintf("Veteran Platform: ваш код %s. Не передавайте нікому.", code)
+	return t.send(phone, body)
+}
+
+func (t *TwilioSender) SendInvitation(_ context.Context, phone, eventTitle string) error {
+	body := fmt.Sprintf("Вас запросили приєднатись до групової реєстрації на подію '%s'. Увійдіть у Veteran Platform щоб підтвердити.", eventTitle)
+	return t.send(phone, body)
+}
+
+func (t *TwilioSender) send(phone, body string) error {
 	params := &twapi.CreateMessageParams{}
 	params.SetTo(phone)
 	params.SetFrom(t.from)

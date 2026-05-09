@@ -10,7 +10,8 @@ import (
 )
 
 type Sender interface {
-	Send(ctx context.Context, phone, code string) error
+	SendCode(ctx context.Context, phone, code string) error
+	SendInvitation(ctx context.Context, phone, eventTitle string) error
 }
 
 func GenerateCode(length int) (string, error) {

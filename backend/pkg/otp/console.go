@@ -14,7 +14,12 @@ func NewConsoleSender(log *logger.Logger) *ConsoleSender {
 	return &ConsoleSender{log: log}
 }
 
-func (c *ConsoleSender) Send(_ context.Context, phone, code string) error {
+func (c *ConsoleSender) SendCode(_ context.Context, phone, code string) error {
 	c.log.Info("OTP", "phone", phone, "code", code)
+	return nil
+}
+
+func (c *ConsoleSender) SendInvitation(_ context.Context, phone, eventTitle string) error {
+	c.log.Info("INVITATION", "phone", phone, "event", eventTitle)
 	return nil
 }

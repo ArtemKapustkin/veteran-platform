@@ -60,7 +60,7 @@ func (h *EventHandler) List(ctx *fasthttp.RequestCtx) {
 
 func (h *EventHandler) Get(ctx *fasthttp.RequestCtx) {
 	id := pathUUID(ctx, "id")
-	res, err := h.events.Get(ctx, id, server.IsAdmin(ctx))
+	res, err := h.events.Get(ctx, id, server.OptionalVeteranID(ctx), server.IsAdmin(ctx))
 	if err != nil {
 		panic(err)
 	}

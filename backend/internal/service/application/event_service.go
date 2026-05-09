@@ -14,10 +14,11 @@ import (
 
 type EventService struct {
 	events *repository.EventRepository
+	regs   *repository.RegistrationRepository
 }
 
-func NewEventService(events *repository.EventRepository) *EventService {
-	return &EventService{events: events}
+func NewEventService(events *repository.EventRepository, regs *repository.RegistrationRepository) *EventService {
+	return &EventService{events: events, regs: regs}
 }
 
 type CostInput struct {
@@ -164,7 +165,7 @@ func (s *EventService) Reject(ctx context.Context, id uuid.UUID, reason string) 
 	return view.FromEventDetail(e), nil
 }
 
-func (s *EventService) Get(ctx context.Context, id uuid.UUID, isAdmin bool) (*view.EventDetail, error) {
+func (s *EventService) Get(ctx context.Context, id uuid.UUID, viewerID *uuid.UUID, isAdmin bool) (*view.EventDetail, error) {
 	e, err := s.events.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -175,7 +176,17 @@ func (s *EventService) Get(ctx context.Context, id uuid.UUID, isAdmin bool) (*vi
 	if !isAdmin && e.Status != "published" {
 		return nil, apperrors.NewNotFoundError("event not found")
 	}
-	return view.FromEventDetail(e), nil
+	detail := view.FromEventDetail(e)
+	if viewerID != nil {
+		reg, err := s.regs.FindActiveByEventAndVeteran(ctx, id, *viewerID)
+		if err != nil {
+			return nil, err
+		}
+		if reg != nil {
+			detail.MyRegistration = view.FromRegistration(reg)
+		}
+	}
+	return detail, nil
 }
 
 func (s *EventService) ListPublic(ctx context.Context, f repository.ListFilters) (*view.EventPage, error) {
