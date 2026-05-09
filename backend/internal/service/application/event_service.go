@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/uptrace/bun"
 
 	"github.com/ArtemKapustkin/veteran-platform/backend/internal/model"
 	"github.com/ArtemKapustkin/veteran-platform/backend/internal/repository"
@@ -13,12 +14,13 @@ import (
 )
 
 type EventService struct {
+	db     *bun.DB
 	events *repository.EventRepository
 	regs   *repository.RegistrationRepository
 }
 
-func NewEventService(events *repository.EventRepository, regs *repository.RegistrationRepository) *EventService {
-	return &EventService{events: events, regs: regs}
+func NewEventService(db *bun.DB, events *repository.EventRepository, regs *repository.RegistrationRepository) *EventService {
+	return &EventService{db: db, events: events, regs: regs}
 }
 
 type CostInput struct {
@@ -203,6 +205,174 @@ func (s *EventService) ListAdmin(ctx context.Context, f repository.ListFilters) 
 		return nil, err
 	}
 	return mapPage(rows), nil
+}
+
+type UpdateEventInput struct {
+	Category          *string
+	Title             *string
+	Description       *string
+	Quota             *int
+	StartsAt          *time.Time
+	EndsAt            *time.Time
+	Format            *string
+	Repeat            *string
+	ForWhom           *string
+	Cost              *CostInput
+	AccessibilityTags []string
+	HasAccessibility  bool
+	VerifiedOnly      *bool
+	CommunityID       *uuid.UUID
+	Location          *LocationInput
+	CoverImageURL     *string
+}
+
+func (s *EventService) Update(ctx context.Context, id uuid.UUID, in UpdateEventInput) (*view.EventDetail, error) {
+	e, err := s.events.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if e == nil || e.Status == "deleted" {
+		return nil, apperrors.NewNotFoundError("event not found")
+	}
+	if in.Quota != nil && *in.Quota < e.SeatsTaken {
+		return nil, apperrors.NewConflictError("quota cannot be lowered below current seats_taken")
+	}
+	if in.Category != nil {
+		e.Category = *in.Category
+	}
+	if in.Title != nil {
+		e.Title = *in.Title
+	}
+	if in.Description != nil {
+		e.Description = in.Description
+	}
+	if in.Quota != nil {
+		e.Quota = *in.Quota
+	}
+	if in.StartsAt != nil {
+		e.StartsAt = *in.StartsAt
+	}
+	if in.EndsAt != nil {
+		e.EndsAt = in.EndsAt
+	}
+	if in.Format != nil {
+		e.Format = *in.Format
+	}
+	if in.Repeat != nil {
+		e.Repeat = *in.Repeat
+	}
+	if in.ForWhom != nil {
+		e.ForWhom = *in.ForWhom
+	}
+	if in.Cost != nil {
+		e.CostTier = in.Cost.Tier
+		e.CostPriceUah = in.Cost.PriceUah
+		e.CostVeteranPriceUah = in.Cost.VeteranPriceUah
+	}
+	if in.HasAccessibility {
+		if in.AccessibilityTags == nil {
+			e.AccessibilityTags = []string{}
+		} else {
+			e.AccessibilityTags = in.AccessibilityTags
+		}
+	}
+	if in.VerifiedOnly != nil {
+		e.VerifiedOnly = *in.VerifiedOnly
+	}
+	if in.CommunityID != nil {
+		e.CommunityID = in.CommunityID
+	}
+	if in.Location != nil {
+		e.LocationCity = in.Location.City
+		e.LocationDistrict = in.Location.District
+		e.LocationAddress = in.Location.Address
+		e.LocationVenue = in.Location.Venue
+		e.LocationLat = in.Location.Lat
+		e.LocationLng = in.Location.Lng
+	}
+	if in.CoverImageURL != nil {
+		e.CoverImageURL = in.CoverImageURL
+	}
+	e.UpdatedAt = time.Now()
+	if err := s.events.Update(ctx, e); err != nil {
+		return nil, err
+	}
+	return view.FromEventDetail(e), nil
+}
+
+func (s *EventService) Publish(ctx context.Context, id uuid.UUID) (*view.EventDetail, error) {
+	e, err := s.events.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if e == nil {
+		return nil, apperrors.NewNotFoundError("event not found")
+	}
+	if e.Status != "draft" {
+		return nil, apperrors.NewConflictError("only draft events can be published")
+	}
+	e.Status = "published"
+	e.UpdatedAt = time.Now()
+	if err := s.events.Update(ctx, e); err != nil {
+		return nil, err
+	}
+	return view.FromEventDetail(e), nil
+}
+
+func (s *EventService) Cancel(ctx context.Context, id uuid.UUID) (*view.EventDetail, error) {
+	return s.terminate(ctx, id, "cancelled", "only published events can be cancelled", []string{"published"})
+}
+
+func (s *EventService) SoftDelete(ctx context.Context, id uuid.UUID) error {
+	if _, err := s.terminate(ctx, id, "deleted", "event already deleted", []string{"draft", "pending_approval", "published", "rejected", "cancelled"}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *EventService) terminate(ctx context.Context, id uuid.UUID, finalStatus, conflictMsg string, allowedFrom []string) (*view.EventDetail, error) {
+	e, err := s.events.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if e == nil {
+		return nil, apperrors.NewNotFoundError("event not found")
+	}
+	allowed := false
+	for _, s := range allowedFrom {
+		if e.Status == s {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return nil, apperrors.NewConflictError(conflictMsg)
+	}
+	now := time.Now()
+	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.NewUpdate().
+			Model((*model.Event)(nil)).
+			Set("status = ?", finalStatus).
+			Set("updated_at = ?", now).
+			Where("id = ?", id).
+			Exec(ctx); err != nil {
+			return err
+		}
+		_, err := tx.NewUpdate().
+			Model((*model.Registration)(nil)).
+			Set("status = ?", "cancelled").
+			Set("cancelled_at = ?", now).
+			Set("updated_at = ?", now).
+			Where("event_id = ? AND status IN ('pending_companions', 'confirmed')", id).
+			Exec(ctx)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	e.Status = finalStatus
+	e.UpdatedAt = now
+	return view.FromEventDetail(e), nil
 }
 
 func mapPage(rows []model.Event) *view.EventPage {

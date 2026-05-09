@@ -19,6 +19,21 @@ func NewVeteranService(veterans *repository.VeteranRepository) *VeteranService {
 	return &VeteranService{veterans: veterans}
 }
 
+func (s *VeteranService) List(ctx context.Context, f repository.VeteranListFilters) (*view.VeteranPage, error) {
+	rows, err := s.veterans.List(ctx, f)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*view.Veteran, 0, len(rows))
+	for i := range rows {
+		items = append(items, view.FromVeteran(&rows[i]))
+	}
+	return &view.VeteranPage{
+		Items:      items,
+		Pagination: view.Pagination{NextCursor: nil},
+	}, nil
+}
+
 func (s *VeteranService) Get(ctx context.Context, id uuid.UUID) (*view.Veteran, error) {
 	v, err := s.veterans.FindByID(ctx, id)
 	if err != nil {

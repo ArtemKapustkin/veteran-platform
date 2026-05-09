@@ -58,3 +58,8 @@ type AuthTokens struct {
 	Role         string   `json:"role"`
 	Veteran      *Veteran `json:"veteran,omitempty"`
 }
+
+type VeteranPage struct {
+	Items      []*Veteran `json:"items"`
+	Pagination Pagination `json:"pagination"`
+}

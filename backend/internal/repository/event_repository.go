@@ -80,9 +80,11 @@ func (r *EventRepository) ListPublic(ctx context.Context, f ListFilters) ([]mode
 
 func (r *EventRepository) ListAdmin(ctx context.Context, f ListFilters) ([]model.Event, error) {
 	var events []model.Event
-	q := r.db.NewSelect().Model(&events).Where("status <> ?", "deleted")
+	q := r.db.NewSelect().Model(&events)
 	if len(f.Statuses) > 0 {
 		q = q.Where("status IN (?)", bun.In(f.Statuses))
+	} else {
+		q = q.Where("status <> ?", "deleted")
 	}
 	if f.CreatedByRole != nil {
 		q = q.Where("created_by_role = ?", *f.CreatedByRole)

@@ -64,3 +64,38 @@ func (r *VeteranRepository) Update(ctx context.Context, v *model.Veteran) error 
 	_, err := r.db.NewUpdate().Model(v).WherePK().Exec(ctx)
 	return err
 }
+
+type VeteranListFilters struct {
+	VerificationStatus *string
+	Verified           *bool
+	AudienceStatus     *string
+	Q                  *string
+	Limit              int
+}
+
+func (r *VeteranRepository) List(ctx context.Context, f VeteranListFilters) ([]model.Veteran, error) {
+	var rows []model.Veteran
+	q := r.db.NewSelect().Model(&rows).Order("created_at DESC")
+	if f.VerificationStatus != nil {
+		q = q.Where("verification_status = ?", *f.VerificationStatus)
+	}
+	if f.Verified != nil {
+		q = q.Where("verified = ?", *f.Verified)
+	}
+	if f.AudienceStatus != nil {
+		q = q.Where("audience_status = ?", *f.AudienceStatus)
+	}
+	if f.Q != nil && *f.Q != "" {
+		needle := "%" + *f.Q + "%"
+		q = q.Where("(coalesce(fullname,'') ILIKE ? OR coalesce(phone,'') ILIKE ? OR coalesce(brigade,'') ILIKE ?)", needle, needle, needle)
+	}
+	limit := f.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	q = q.Limit(limit)
+	if err := q.Scan(ctx); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}

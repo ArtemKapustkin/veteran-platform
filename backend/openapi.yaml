@@ -1,15 +1,18 @@
 openapi: 3.0.3
 info:
   title: Veterans Events Platform API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     REST API for the Veterans Events Platform.
 
     Roles:
       - `veteran` — phone+OTP auth. Browses/creates communities, registers for events
         (solo or group), and can submit events for admin approval.
-      - `admin`   — single bootstrapped account. Approves veteran-submitted events,
-        creates events directly (auto-approved), moderates veterans/communities.
+      - `admin`   — bootstrapped via the `promote-admin` CLI (one-shot DB write that
+        flips `role=admin` on an existing veteran). Admins authenticate using the same
+        phone+OTP flow as veterans; on `/auth/refresh` the access token is re-issued
+        with `role=admin` claims pulled from the DB. Approves veteran-submitted events,
+        creates events directly, moderates veterans/communities.
 
     Key behaviors:
       - Terminology: "registration" (not "signup"/"booking") for joining an event.
@@ -38,7 +41,6 @@ servers:
 
 tags:
   - name: Auth (veteran)
-  - name: Auth (admin)
   - name: Me
   - name: Verification
   - name: Communities
@@ -119,40 +121,6 @@ paths:
             schema: { $ref: '#/components/schemas/RefreshRequest' }
       responses:
         '204': { description: Logged out }
-
-  # ─────────────────────────────── ADMIN AUTH ───────────────────────────────
-  /api/v1/admin/auth/login:
-    post:
-      tags: [Auth (admin)]
-      summary: Admin email+password login
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/AdminLogin' }
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/AuthTokens' }
-        '401': { description: Invalid credentials }
-
-  /api/v1/admin/auth/refresh:
-    post:
-      tags: [Auth (admin)]
-      summary: Refresh admin access token
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RefreshRequest' }
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/AuthTokens' }
 
   # ─────────────────────────────── ME ───────────────────────────────
   /api/v1/me:
@@ -249,12 +217,14 @@ paths:
       tags: [Verification]
       summary: Submit documents for AI-vision verification
       description: |
-        Documents are streamed **directly to the OpenAI Vision API** for analysis. **We do
-        not persist the image** — bytes are held in memory only for the duration of the
-        request, sent to OpenAI, then discarded. Only the AI result (decision, confidence,
-        extracted fields, notes) is stored against the veteran record.
+        Documents are forwarded to the **OpenAI Assistants API v2** (vision-capable model
+        with the system prompt configured on the OpenAI side). **We do not persist the
+        image** — bytes are held in memory only for the duration of the request, sent
+        inline as a base64 image_url, then discarded. The OpenAI thread is also deleted
+        after the run completes. Only the AI result (decision, confidence, extracted
+        fields, notes) is stored against the veteran record.
 
-        The call is synchronous: the response returns once the OpenAI assistant has finished
+        The call is synchronous: the response returns once the assistant has finished
         analysis (typically a few seconds). Allowed document types are returned by
         `GET /reference/document-types`. Image size limit: `doc_photo_max_mb` (see
         `GET /reference/limits`).
@@ -564,16 +534,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EventDetail' }
-
-  /api/v1/admin/events/schema:
-    get:
-      tags: [Admin / Events]
-      summary: Form schema (enums, validation, available tags) for the admin panel
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/EventFormSchema' }
 
   /api/v1/admin/events/{id}:
     parameters: [{ $ref: '#/components/parameters/Id' }]
@@ -982,13 +942,6 @@ components:
         phone: { type: string }
         code:  { type: string, example: "123456" }
 
-    AdminLogin:
-      type: object
-      required: [email, password]
-      properties:
-        email:    { type: string, format: email }
-        password: { type: string, format: password }
-
     RefreshRequest:
       type: object
       required: [refresh_token]
@@ -1233,30 +1186,6 @@ components:
         cover_image_url:    { type: string, format: uri, nullable: true }
         status:             { $ref: '#/components/schemas/EventStatus' }
 
-    EventFormSchema:
-      type: object
-      description: Drives dynamic admin form rendering.
-      properties:
-        categories:           { type: array, items: { $ref: '#/components/schemas/EventCategoryRef' } }
-        statuses:             { type: array, items: { $ref: '#/components/schemas/EventStatus' } }
-        formats:              { type: array, items: { $ref: '#/components/schemas/EventFormat' } }
-        repeats:              { type: array, items: { $ref: '#/components/schemas/EventRepeat' } }
-        for_whom:             { type: array, items: { $ref: '#/components/schemas/ForWhom' } }
-        cost_tiers:           { type: array, items: { type: string } }
-        accessibility_tags:   { type: array, items: { $ref: '#/components/schemas/AccessibilityTag' } }
-        cities:               { type: array, items: { type: string } }
-        districts:            { type: array, items: { $ref: '#/components/schemas/KyivDistrict' } }
-        limits:               { $ref: '#/components/schemas/LimitsRef' }
-        fields:
-          type: array
-          items:
-            type: object
-            properties:
-              name:        { type: string }
-              label:       { type: string }
-              widget:      { type: string, enum: [text, textarea, number, date, datetime, select, multiselect, checkbox, file, location, cost] }
-              required:    { type: boolean }
-              constraints: { type: object, additionalProperties: true }
 
     # ─────── REGISTRATION ───────
 
