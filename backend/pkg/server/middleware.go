@@ -47,6 +47,20 @@ func (m *AuthMiddleware) RequireAdmin(next fasthttp.RequestHandler) fasthttp.Req
 	}
 }
 
+func (m *AuthMiddleware) Optional(next fasthttp.RequestHandler) fasthttp.RequestHandler {
+	return func(ctx *fasthttp.RequestCtx) {
+		h := string(ctx.Request.Header.Peek("Authorization"))
+		if strings.HasPrefix(h, "Bearer ") {
+			token := strings.TrimPrefix(h, "Bearer ")
+			if claims, err := m.jwt.Verify(token); err == nil {
+				ctx.SetUserValue(ctxKeyVeteranID, claims.Subject)
+				ctx.SetUserValue(ctxKeyRole, string(claims.Role))
+			}
+		}
+		next(ctx)
+	}
+}
+
 func (m *AuthMiddleware) parseClaims(ctx *fasthttp.RequestCtx) *auth.Claims {
 	h := string(ctx.Request.Header.Peek("Authorization"))
 	if !strings.HasPrefix(h, "Bearer ") {
@@ -71,8 +85,23 @@ func VeteranID(ctx *fasthttp.RequestCtx) uuid.UUID {
 	panic(apperrors.NewInternalError("invalid auth context"))
 }
 
+func OptionalVeteranID(ctx *fasthttp.RequestCtx) *uuid.UUID {
+	v := ctx.UserValue(ctxKeyVeteranID)
+	if v == nil {
+		return nil
+	}
+	if id, ok := v.(uuid.UUID); ok {
+		return &id
+	}
+	return nil
+}
+
 func RoleFromCtx(ctx *fasthttp.RequestCtx) string {
 	v := ctx.UserValue(ctxKeyRole)
 	s, _ := v.(string)
 	return s
+}
+
+func IsAdmin(ctx *fasthttp.RequestCtx) bool {
+	return RoleFromCtx(ctx) == string(auth.RoleAdmin)
 }

@@ -24,7 +24,13 @@ func main() {
 	_ = godotenv.Load("./config/.env")
 
 	root := &cobra.Command{Use: "backend"}
-	root.AddCommand(serveCmd(), migrateCmd(), migrateRollbackCmd(), migrateStatusCmd())
+	root.AddCommand(
+		serveCmd(),
+		migrateCmd(),
+		migrateRollbackCmd(),
+		migrateStatusCmd(),
+		promoteAdminCmd(),
+	)
 
 	if err := root.Execute(); err != nil {
 		log.Println(err)
@@ -102,6 +108,35 @@ func migrateStatusCmd() *cobra.Command {
 				fmt.Printf("last group: %s\n", ms.LastGroup())
 				return nil
 			})
+		},
+	}
+}
+
+func promoteAdminCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "promote-admin <phone>",
+		Short: "Promote an existing veteran (matched by phone) to admin role",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			phone := args[0]
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			sqlDB := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(cfg.DSN())))
+			defer sqlDB.Close()
+			db := bun.NewDB(sqlDB, pgdialect.New())
+			res, err := db.ExecContext(context.Background(),
+				`UPDATE vp.veterans SET role = 'admin', updated_at = now() WHERE phone = ?`, phone)
+			if err != nil {
+				return err
+			}
+			n, _ := res.RowsAffected()
+			if n == 0 {
+				return fmt.Errorf("no veteran with phone %s", phone)
+			}
+			fmt.Printf("promoted %s to admin\n", phone)
+			return nil
 		},
 	}
 }
