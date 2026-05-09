@@ -1,7 +1,13 @@
 "use client";
 
 import { Map, type MapRef } from "react-map-gl/maplibre";
-import { forwardRef, type ReactNode } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 
 // `liberty` is OpenFreeMap's full-color OSM Liberty style — soft green parks,
 // pastel water, gentle road tints. Was previously `positron` (greyscale-ish);
@@ -30,12 +36,80 @@ export const MapCanvas = forwardRef<MapRef, MapCanvasProps>(function MapCanvas(
     className,
     children,
   },
-  ref,
+  forwardedRef,
 ) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const internalMapRef = useRef<MapRef | null>(null);
+
+  const setMapRef = useCallback(
+    (instance: MapRef | null) => {
+      internalMapRef.current = instance;
+      if (typeof forwardedRef === "function") {
+        forwardedRef(instance);
+      } else if (forwardedRef) {
+        forwardedRef.current = instance;
+      }
+    },
+    [forwardedRef],
+  );
+
+  // MapLibre measures its canvas once at mount and only repaints on view
+  // changes. When the embed lives below the fold (event detail "Локація"
+  // map) the canvas can land 0×0 / mismeasured for its first frame and
+  // stay blank until the user pans. We patch this two ways:
+  //   1) ResizeObserver — re-`resize()` whenever the container box settles
+  //      (late layout, viewport switch, sticky reflow).
+  //   2) IntersectionObserver — force a repaint as soon as the embed
+  //      scrolls into view. With a 200px rootMargin we trigger just before
+  //      it enters the viewport so the user never sees a blank frame.
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+
+    const repaint = () => {
+      const m = internalMapRef.current;
+      if (!m) return;
+      m.resize();
+      m.triggerRepaint();
+    };
+
+    const cleanups: Array<() => void> = [];
+
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(repaint);
+      ro.observe(node);
+      cleanups.push(() => ro.disconnect());
+    }
+
+    if (typeof IntersectionObserver !== "undefined") {
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) repaint();
+        },
+        { rootMargin: "200px" },
+      );
+      io.observe(node);
+      cleanups.push(() => io.disconnect());
+    }
+
+    return () => cleanups.forEach((c) => c());
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    const m = internalMapRef.current;
+    if (!m) return;
+    m.resize();
+    m.triggerRepaint();
+  }, []);
+
   return (
-    <div className={className} style={{ position: "absolute", inset: 0 }}>
+    <div
+      ref={containerRef}
+      className={className}
+      style={{ position: "absolute", inset: 0 }}
+    >
       <Map
-        ref={ref}
+        ref={setMapRef}
         initialViewState={{ longitude, latitude, zoom }}
         minZoom={minZoom}
         maxZoom={maxZoom}
@@ -50,6 +124,7 @@ export const MapCanvas = forwardRef<MapRef, MapCanvasProps>(function MapCanvas(
         dragPan={interactive}
         keyboard={interactive}
         touchZoomRotate={interactive}
+        onLoad={handleLoad}
         style={{ width: "100%", height: "100%" }}
       >
         {children}

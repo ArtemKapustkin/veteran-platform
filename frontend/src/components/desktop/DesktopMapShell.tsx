@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { MapRef } from "react-map-gl/maplibre";
 import { DesktopNav } from "./DesktopNav";
 import { DesktopFilterBar } from "./DesktopFilterBar";
 import { DesktopHeader } from "./DesktopHeader";
@@ -11,6 +13,10 @@ import { PinLayer } from "@/components/map/PinLayer";
 import { Overlays } from "@/components/sheets/Overlays";
 import { CATEGORIES } from "@/data/categories";
 import { EVENTS, KYIV_CENTER, getEventById } from "@/data/events";
+
+/** Zoom + animation tuning for the card → pin "fly to" effect. */
+const FOCUS_ZOOM = 14;
+const FOCUS_FLY_SPEED = 1.4;
 
 /**
  * LUN-style split view for desktop.
@@ -31,6 +37,7 @@ export function DesktopMapShell({
   const eventIdParam = params.get("event");
   const focusedId = eventIdParam ? Number(eventIdParam) : null;
   const focused = focusedId != null ? getEventById(focusedId) : undefined;
+  const mapRef = useRef<MapRef>(null);
 
   const onCardSelect = (id: number) => {
     // Stay in the split-view shell: just focus the pin via ?event=.
@@ -38,6 +45,24 @@ export function DesktopMapShell({
     const target = listOnly ? "/map" : window.location.pathname;
     router.push(`${target}?event=${id}`, { scroll: false });
   };
+
+  // Smoothly fly the map to the focused pin whenever the selection changes.
+  // `MapCanvas` only takes the lng/lat/zoom props as the *initial* view —
+  // re-renders don't move the camera — so we drive the animation imperatively
+  // via the MapRef. `essential: true` makes the fly happen even when the
+  // user has prefers-reduced-motion (we still respect it via global CSS,
+  // but MapLibre needs the explicit opt-in to animate at all).
+  useEffect(() => {
+    if (!focused) return;
+    const map = mapRef.current;
+    if (!map) return;
+    map.flyTo({
+      center: [focused.location.lng, focused.location.lat],
+      zoom: FOCUS_ZOOM,
+      speed: FOCUS_FLY_SPEED,
+      essential: true,
+    });
+  }, [focused]);
 
   return (
     <div className="bg-bg flex flex-col" style={{ height: "100vh" }}>
@@ -78,9 +103,10 @@ export function DesktopMapShell({
             style={{ flex: "1 1 0", minWidth: 0 }}
           >
             <MapCanvas
+              ref={mapRef}
               longitude={focused?.location.lng ?? KYIV_CENTER.lng}
               latitude={focused?.location.lat ?? KYIV_CENTER.lat}
-              zoom={focused ? 13 : 11.4}
+              zoom={focused ? FOCUS_ZOOM : 11.4}
             >
               <PinLayer events={EVENTS} focusedId={focusedId} />
             </MapCanvas>
