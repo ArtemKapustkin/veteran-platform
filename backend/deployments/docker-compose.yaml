@@ -1,0 +1,39 @@
+name: veteran-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: veteran
+      POSTGRES_PASSWORD: veteran
+      POSTGRES_DB: veteran_platform
+    ports:
+      - "5433:5432"
+    volumes:
+      - vp_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veteran -d veteran_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HTTP_PORT: 8088
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: veteran
+      DB_PASS: veteran
+      DB_NAME: veteran_platform
+      LOG_LEVEL: debug
+    ports:
+      - "8088:8088"
+
+volumes:
+  vp_pg:
