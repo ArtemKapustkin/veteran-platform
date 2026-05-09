@@ -1,0 +1,1310 @@
+openapi: 3.0.3
+info:
+  title: Veterans Events Platform API
+  version: 0.3.0
+  description: |
+    REST API for the Veterans Events Platform.
+
+    Roles:
+      - `veteran` — phone+OTP auth. Browses/creates communities, registers for events
+        (solo or group), and can submit events for admin approval.
+      - `admin`   — single bootstrapped account. Approves veteran-submitted events,
+        creates events directly (auto-approved), moderates veterans/communities.
+
+    Key behaviors:
+      - Terminology: "registration" (not "signup"/"booking") for joining an event.
+      - Group registrations: max 4 people total (creator + up to 3 companions),
+        24-hour confirmation TTL. Quota is reserved on creation; if any companion
+        declines or TTL elapses, the whole registration is cancelled and seats released.
+      - Companions must be registered veterans. Invited phones receive an SMS prompting
+        them to sign up / sign in via the standard OTP flow; once authenticated they
+        see the pending invitation in `/me/invitations` and confirm or decline.
+      - Verified-only events: companions must also be verified. Verification uses an
+        AI vision integration that checks uploaded documents against an allowed list;
+        admin can override the AI decision.
+      - Communities are external chat hubs (Telegram link only); no in-app chat.
+      - Veteran-submitted events start in `pending_approval`; admin-created events
+        skip straight to `published` (or `draft` if explicitly chosen).
+
+    Standardized enums (categories, format, repeat, for-whom audience, cost, district,
+    accessibility tags, document types) match the frontend `constants.ts`. UI labels
+    are Ukrainian; entity codes are English.
+
+servers:
+  - url: https://api.veteran-platform.gov.ua
+    description: Production
+  - url: http://localhost:8080
+    description: Local
+
+tags:
+  - name: Auth (veteran)
+  - name: Auth (admin)
+  - name: Me
+  - name: Verification
+  - name: Communities
+  - name: Events
+  - name: Registrations
+  - name: Invitations
+  - name: Reference
+  - name: Admin / Events
+  - name: Admin / Veterans
+  - name: Admin / Communities
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ─────────────────────────────── VETERAN AUTH ───────────────────────────────
+  /api/v1/auth/otp/request:
+    post:
+      tags: [Auth (veteran)]
+      summary: Request SMS OTP code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OtpRequest' }
+      responses:
+        '202': { description: OTP sent }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/v1/auth/otp/verify:
+    post:
+      tags: [Auth (veteran)]
+      summary: Verify OTP code, sign up or log in
+      description: First successful verify for a phone creates a veteran with `verified=false`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OtpVerify' }
+      responses:
+        '200':
+          description: Tokens + veteran profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokensVeteran' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { description: Invalid or expired code }
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth (veteran)]
+      summary: Exchange refresh token for new access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+        '401': { description: Invalid refresh token }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth (veteran)]
+      summary: Revoke current refresh token
+      responses:
+        '204': { description: Logged out }
+
+  # ─────────────────────────────── ADMIN AUTH ───────────────────────────────
+  /api/v1/admin/auth/login:
+    post:
+      tags: [Auth (admin)]
+      summary: Admin email+password login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminLogin' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+        '401': { description: Invalid credentials }
+
+  /api/v1/admin/auth/refresh:
+    post:
+      tags: [Auth (admin)]
+      summary: Refresh admin access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+
+  # ─────────────────────────────── ME ───────────────────────────────
+  /api/v1/me:
+    get:
+      tags: [Me]
+      summary: Get current veteran profile
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Veteran' }
+    patch:
+      tags: [Me]
+      summary: Update profile fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VeteranUpdate' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Veteran' }
+
+  /api/v1/me/registrations:
+    get:
+      tags: [Me]
+      summary: My event registrations
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/RegistrationStatus' } }
+        - { name: limit,  in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistrationPage' }
+
+  /api/v1/me/invitations:
+    get:
+      tags: [Me, Invitations]
+      summary: Pending group-registration invitations addressed to my phone
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Invitation' } }
+
+  /api/v1/me/invitations/{invitation_id}/confirm:
+    parameters:
+      - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Invitations]
+      summary: Confirm participation in a group registration I was invited to
+      description: |
+        Fails with 409 if the invitation TTL has elapsed or the registration was
+        already cancelled. Fails with 403 if the event is verified-only and the
+        confirming veteran is not yet verified.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Registration' }
+        '403': { description: Verified-only event and caller is not verified }
+        '409': { description: Invitation expired or registration cancelled }
+
+  /api/v1/me/invitations/{invitation_id}/decline:
+    parameters:
+      - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Invitations]
+      summary: Decline invitation — releases all reserved seats for the group
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Registration' }
+
+  # ─────────────────────────────── VERIFICATION ───────────────────────────────
+  /api/v1/me/verification:
+    get:
+      tags: [Verification]
+      summary: My current verification status and history
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationState' }
+    post:
+      tags: [Verification]
+      summary: Submit documents for AI-vision verification
+      description: |
+        Documents are uploaded and processed asynchronously by the AI vision integration.
+        The endpoint returns immediately with `status=processing`. Poll `GET /me/verification`
+        for the result. Allowed document types are returned by `GET /reference/document-types`.
+
+        Image size limit: `doc_photo_max_mb` (see `GET /reference/limits`).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [document_type, files]
+              properties:
+                document_type: { $ref: '#/components/schemas/DocumentType' }
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+      responses:
+        '202':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationState' }
+
+  # ─────────────────────────────── REFERENCE / DICTIONARIES ───────────────────
+  /api/v1/reference/document-types:
+    get:
+      tags: [Reference]
+      summary: Allowed document types for veteran verification (with priority)
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/DocumentTypeRef' }
+
+  /api/v1/reference/event-categories:
+    get:
+      tags: [Reference]
+      summary: Event categories with display order
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/EventCategoryRef' }
+
+  /api/v1/reference/cities:
+    get:
+      tags: [Reference]
+      summary: Supported cities (frontend hardcoded list mirrored here)
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { type: string }, example: [Київ, Вінниця, Харків, Львів, Дніпро, Одеса, Запоріжжя] }
+
+  /api/v1/reference/districts:
+    get:
+      tags: [Reference]
+      summary: Districts (currently Kyiv only)
+      security: []
+      parameters:
+        - { name: city, in: query, schema: { type: string }, description: "City name, e.g. 'Київ'. Returns empty list for cities without district granularity." }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code:  { $ref: '#/components/schemas/KyivDistrict' }
+                        label: { type: string }
+
+  /api/v1/reference/limits:
+    get:
+      tags: [Reference]
+      summary: Validation limits and timing constants used by the frontend
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LimitsRef' }
+
+  # ─────────────────────────────── COMMUNITIES ───────────────────────────────
+  /api/v1/communities:
+    get:
+      tags: [Communities]
+      summary: List communities (external Telegram hubs)
+      security: []
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: limit,  in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityPage' }
+    post:
+      tags: [Communities]
+      summary: Create a community (caller becomes owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommunityCreate' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Community' }
+
+  /api/v1/communities/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Communities]
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Community' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Communities]
+      summary: Update community (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommunityUpdate' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Community' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Communities]
+      summary: Soft-delete community (owner only)
+      responses:
+        '204': { description: Deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ─────────────────────────────── EVENTS ───────────────────────────────
+  /api/v1/events:
+    get:
+      tags: [Events]
+      summary: List published events with filters
+      security: []
+      parameters:
+        - { name: category,            in: query, style: form, explode: true, schema: { type: array, items: { $ref: '#/components/schemas/EventCategory' } } }
+        - { name: for_whom,            in: query, style: form, explode: true, schema: { type: array, items: { $ref: '#/components/schemas/ForWhom' } } }
+        - { name: format,              in: query, style: form, explode: true, schema: { type: array, items: { $ref: '#/components/schemas/EventFormat' } } }
+        - { name: repeat,              in: query, schema: { $ref: '#/components/schemas/EventRepeat' } }
+        - { name: cost,                in: query, style: form, explode: true, schema: { type: array, items: { $ref: '#/components/schemas/EventCost' } } }
+        - { name: city,                in: query, schema: { type: string } }
+        - { name: district,            in: query, style: form, explode: true, schema: { type: array, items: { $ref: '#/components/schemas/KyivDistrict' } } }
+        - { name: accessibility_tags,  in: query, style: form, explode: true, schema: { type: array, items: { $ref: '#/components/schemas/AccessibilityTag' } } }
+        - { name: participants_bucket, in: query, schema: { $ref: '#/components/schemas/ParticipantsBucket' } }
+        - { name: date_from,           in: query, schema: { type: string, format: date-time } }
+        - { name: date_to,             in: query, schema: { type: string, format: date-time } }
+        - { name: verified_only,       in: query, schema: { type: boolean }, description: When true, only events restricted to verified veterans }
+        - { name: community_id,        in: query, schema: { type: string, format: uuid } }
+        - { name: has_quota,           in: query, schema: { type: boolean } }
+        - { name: q,                   in: query, schema: { type: string } }
+        - { name: sort,                in: query, schema: { type: string, enum: [date_asc, date_desc, quota_remaining], default: date_asc } }
+        - { name: limit,               in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: cursor,              in: query, schema: { type: string } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventPage' }
+    post:
+      tags: [Events]
+      summary: Submit an event proposal (status starts as pending_approval)
+      description: |
+        Veterans can propose events; an admin must approve before the event becomes
+        publicly visible. Same body as the admin form; `status` is ignored and forced
+        to `pending_approval`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventCreate' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetail' }
+
+  /api/v1/events/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Events]
+      summary: Event details (registration status included if authenticated)
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─────────────────────────────── REGISTRATIONS ───────────────────────────────
+  /api/v1/events/{id}/registrations:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Registrations]
+      summary: Register for an event (solo or group)
+      description: |
+        **Solo:** `seats=1`, `companion_phones` omitted → status `confirmed` immediately
+        if quota allows.
+
+        **Group:** `seats >= 2`, `companion_phones` length must equal `seats - 1`,
+        max group size is 4 (so `seats <= 4`). Status starts as `pending_companions`.
+        Quota is **reserved** for the full group on creation. Each companion phone
+        receives an SMS inviting them to sign up / log in; once authenticated they
+        confirm or decline via `/me/invitations`. The reservation expires 24h after
+        creation — if not all companions have confirmed by then, the whole
+        registration is auto-cancelled and seats released.
+
+        For verified-only events, every companion must be a verified veteran at the
+        moment of confirmation; otherwise their confirm fails with 403.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegistrationCreate' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Registration' }
+        '409': { description: Quota exhausted or duplicate registration }
+        '403': { description: Event is verified-only and caller is unverified }
+    get:
+      tags: [Registrations]
+      summary: Roster for an event (organizer/admin only)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistrationPage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/events/{id}/registrations/{registration_id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - { name: registration_id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Registrations]
+      summary: Cancel my registration (releases seats including companions')
+      responses:
+        '204': { description: Cancelled }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ─────────────────────────────── ADMIN / EVENTS ───────────────────────────────
+  /api/v1/admin/events:
+    get:
+      tags: [Admin / Events]
+      summary: List all events (any status, including pending approval)
+      parameters:
+        - { name: status,        in: query, schema: { $ref: '#/components/schemas/EventStatus' } }
+        - { name: category,      in: query, style: form, explode: true, schema: { type: array, items: { $ref: '#/components/schemas/EventCategory' } } }
+        - { name: community_id,  in: query, schema: { type: string, format: uuid } }
+        - { name: created_by,    in: query, schema: { type: string, enum: [admin, veteran] } }
+        - { name: q,             in: query, schema: { type: string } }
+        - { name: limit,         in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: cursor,        in: query, schema: { type: string } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventPage' }
+    post:
+      tags: [Admin / Events]
+      summary: Create event as admin (auto-approved; publishes immediately by default)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventCreate' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetail' }
+
+  /api/v1/admin/events/schema:
+    get:
+      tags: [Admin / Events]
+      summary: Form schema (enums, validation, available tags) for the admin panel
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventFormSchema' }
+
+  /api/v1/admin/events/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Admin / Events]
+      summary: Partial update of an event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventUpdate' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetail' }
+        '409': { description: Quota cannot be lowered below current seats_taken }
+    delete:
+      tags: [Admin / Events]
+      summary: Soft-delete event, cascades registrations to cancelled
+      responses:
+        '204': { description: Deleted }
+
+  /api/v1/admin/events/{id}/approve:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Admin / Events]
+      summary: Approve a veteran-submitted event (pending_approval → published)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetail' }
+
+  /api/v1/admin/events/{id}/reject:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Admin / Events]
+      summary: Reject a veteran-submitted event with optional reason
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetail' }
+
+  /api/v1/admin/events/{id}/publish:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Admin / Events]
+      summary: Publish a draft event (admin-created)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetail' }
+
+  /api/v1/admin/events/{id}/cancel:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Admin / Events]
+      summary: Cancel a published event, notify all registrations
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetail' }
+
+  /api/v1/admin/events/{id}/registrations:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Admin / Events]
+      summary: Full roster including companion details and statuses
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistrationPage' }
+
+  # ─────────────────────────────── ADMIN / VETERANS ───────────────────────────────
+  /api/v1/admin/veterans:
+    get:
+      tags: [Admin / Veterans]
+      summary: List veterans with moderation filters
+      parameters:
+        - { name: verification_status, in: query, schema: { $ref: '#/components/schemas/VerificationStatus' } }
+        - { name: verified, in: query, schema: { type: boolean } }
+        - { name: audience_status, in: query, schema: { $ref: '#/components/schemas/AudienceStatus' } }
+        - { name: q,        in: query, schema: { type: string } }
+        - { name: limit,    in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: cursor,   in: query, schema: { type: string } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VeteranPage' }
+
+  /api/v1/admin/veterans/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Admin / Veterans]
+      summary: Veteran detail incl. submitted documents and AI verification result
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VeteranAdminView' }
+
+  /api/v1/admin/veterans/{id}/verify:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Admin / Veterans]
+      summary: Manually approve or reject veteran verification (overrides AI)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approved]
+              properties:
+                approved: { type: boolean }
+                note:     { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VeteranAdminView' }
+
+  /api/v1/admin/veterans/{id}/block:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Admin / Veterans]
+      summary: Block veteran account, revoke refresh tokens
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VeteranAdminView' }
+
+  # ─────────────────────────────── ADMIN / COMMUNITIES ───────────────────────────────
+  /api/v1/admin/communities:
+    get:
+      tags: [Admin / Communities]
+      summary: List all communities including soft-deleted
+      parameters:
+        - { name: include_deleted, in: query, schema: { type: boolean, default: false } }
+        - { name: q,      in: query, schema: { type: string } }
+        - { name: limit,  in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityPage' }
+
+  /api/v1/admin/communities/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    delete:
+      tags: [Admin / Communities]
+      summary: Force-delete community regardless of owner
+      responses:
+        '204': { description: Deleted }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Caller lacks permission for this resource
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:    { type: string, example: validation_error }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+
+    Pagination:
+      type: object
+      properties:
+        next_cursor: { type: string, nullable: true }
+        total:       { type: integer, nullable: true }
+
+    # ─────── STANDARDIZED ENUMS (mirror frontend constants.ts) ───────
+
+    AudienceStatus:
+      type: string
+      description: Self-identified status of the platform user (USER_STATUS in frontend).
+      enum:
+        - veteran           # Ветеран / захисник
+        - veteran_female    # Ветеранка / захисниця
+        - family            # Родина ветерана
+        - fallen_family     # Родина загиблого захисника
+        - active_military   # Діючий військовослужбовець
+        - other             # Інше
+
+    DocumentType:
+      type: string
+      description: Document presented for veteran verification (DOC_TYPE in frontend, ordered by legal priority).
+      enum:
+        - ubd_dia            # Е-посвідчення ветерана в Дії          (priority 1)
+        - ubd_paper          # Посвідчення УБД (паперове або фото)   (priority 2)
+        - reestr_extract     # Витяг з ЄДРВВ                          (priority 3)
+        - form_6             # Довідка про участь у бойових діях (форма 6) (priority 4)
+        - military_book      # Військовий квиток з відміткою УБД      (priority 5)
+        - family_fallen      # Посвідчення члена сім'ї загиблого      (priority 6)
+        - self_declaration   # Документ в процесі оформлення          (priority 7)
+
+    EventCategory:
+      type: string
+      description: Event category (EVENT_CATEGORY in frontend).
+      enum:
+        - spa             # СПА і відновлення
+        - sport           # Спорт
+        - yoga            # Йога і медитація
+        - culture         # Культура
+        - education       # Навчання
+        - nature          # Природа і тури
+        - psychology      # Психологічна підтримка
+        - social          # Зустрічі і спілкування
+        - rehabilitation  # Реабілітація
+
+    EventFormat:
+      type: string
+      description: Event delivery format (EVENT_FORMAT in frontend).
+      enum:
+        - offline   # Офлайн
+        - online    # Онлайн
+        - hybrid    # Гібрид
+
+    EventRepeat:
+      type: string
+      description: Event recurrence (EVENT_REPEAT in frontend, plus simplified `regular`).
+      enum:
+        - once      # Одноразова
+        - weekly    # Щотижня
+        - biweekly  # Раз на 2 тижні
+        - monthly   # Щомісяця
+
+    ForWhom:
+      type: string
+      description: Target audience for the event (FOR_WHOM in frontend).
+      enum:
+        - veterans          # Ветерани і ветеранки
+        - female_veterans   # Тільки жінки-ветеранки
+        - male_veterans     # Тільки чоловіки-ветерани
+        - families          # Родини ветеранів
+        - children          # Діти захисників
+        - fallen_families   # Родини загиблих
+        - active_military   # Діючі військові
+        - veterans_and_families  # Для захисників і їх сімей
+        - open              # Відкритий захід
+
+    EventCost:
+      type: object
+      description: Cost dimension. `tier` is the categorical level; `price_uah` is the optional fee shown when tier is `paid` or `discount_for_veterans`.
+      required: [tier]
+      properties:
+        tier:
+          type: string
+          enum:
+            - free_for_all                  # Безкоштовно для всіх
+            - free_for_veterans_and_families # Безкоштовно для ветеранів та родин
+            - free_for_ubd                  # Безкоштовно тільки для УБД
+            - free_via_state_program        # Безкоштовно через держпрограму
+            - discount_for_veterans         # Знижка для ветеранів
+            - paid                          # Платно
+        price_uah:
+          type: number
+          format: float
+          nullable: true
+          description: Required when tier is `paid` or `discount_for_veterans`.
+        veteran_price_uah:
+          type: number
+          format: float
+          nullable: true
+          description: Discounted price when tier is `discount_for_veterans`.
+
+    AccessibilityTag:
+      type: string
+      description: |
+        Accessibility / safety / comfort markers (ACCESSIBILITY_TAG in frontend, plus
+        items from the Ukrainian filter spec).
+      enum:
+        - is_accessible   # Доступно для людей з інвалідністю (пандус/ліфт)
+        - no_shooting     # Без фото- і відеозйомки
+        - kids_allowed    # Можна з дітьми
+        - separate_zones  # Окремі зони для чоловіків і жінок
+        - shelter_nearby  # Поруч є укриття
+        - age_18_plus     # 18+
+
+    KyivDistrict:
+      type: string
+      description: Kyiv districts. Values are transliterated slugs.
+      enum:
+        - holosiivskyi    # Голосіївський
+        - obolonskyi      # Оболонський
+        - pecherskyi      # Печерський
+        - podilskyi       # Подільський
+        - sviatoshynskyi  # Святошинський
+        - solomianskyi    # Солом'янський
+        - shevchenkivskyi # Шевченківський
+        - darnytskyi      # Дарницький
+        - desnianskyi     # Деснянський
+        - dniprovskyi     # Дніпровський
+
+    ParticipantsBucket:
+      type: string
+      description: Bucketed participant count for filtering (matches the Ukrainian filter spec).
+      enum:
+        - up_to_10    # до 10
+        - 10_to_30    # 10–30
+        - 30_plus     # 30+
+
+    EventStatus:
+      type: string
+      enum: [draft, pending_approval, published, rejected, cancelled, deleted]
+
+    RegistrationStatus:
+      type: string
+      enum: [pending_companions, confirmed, cancelled, expired]
+
+    VerificationStatus:
+      type: string
+      enum: [none, processing, approved, rejected]
+
+    # ─────── REFERENCE / DICTIONARY RESPONSES ───────
+
+    DocumentTypeRef:
+      type: object
+      properties:
+        code:        { $ref: '#/components/schemas/DocumentType' }
+        label:       { type: string, description: Ukrainian label }
+        priority:    { type: integer, description: Legal hierarchy, 1 is strongest }
+
+    EventCategoryRef:
+      type: object
+      properties:
+        code:           { $ref: '#/components/schemas/EventCategory' }
+        label:          { type: string, description: Ukrainian label }
+        icon:           { type: string, description: Tabler icon class (e.g. ti-sparkles) }
+        display_order:  { type: integer }
+
+    LimitsRef:
+      type: object
+      description: Validation limits and timing constants surfaced to the frontend.
+      properties:
+        event_title_max:           { type: integer, example: 80 }
+        event_description_max:     { type: integer, example: 150 }
+        feedback_text_max:         { type: integer, example: 300 }
+        doc_photo_max_mb:          { type: integer, example: 10 }
+        group_max_seats:           { type: integer, example: 4 }
+        group_confirm_window_hours:{ type: integer, example: 24 }
+
+    # ─────── AUTH ───────
+
+    OtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone: { type: string, example: "+380501234567" }
+
+    OtpVerify:
+      type: object
+      required: [phone, code]
+      properties:
+        phone: { type: string }
+        code:  { type: string, example: "123456" }
+
+    AdminLogin:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string, format: email }
+        password: { type: string, format: password }
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+
+    AuthTokens:
+      type: object
+      required: [access_token, refresh_token, expires_in, role]
+      properties:
+        access_token:  { type: string }
+        refresh_token: { type: string }
+        expires_in:    { type: integer, description: Seconds until access token expires }
+        role:          { type: string, enum: [veteran, admin] }
+
+    AuthTokensVeteran:
+      allOf:
+        - $ref: '#/components/schemas/AuthTokens'
+        - type: object
+          properties:
+            veteran: { $ref: '#/components/schemas/Veteran' }
+
+    # ─────── VETERAN ───────
+
+    Veteran:
+      type: object
+      required: [id, phone, role, verified, verification_status, account_status, created_at]
+      properties:
+        id:                  { type: string, format: uuid }
+        phone:               { type: string }
+        fullname:            { type: string, nullable: true }
+        brigade:             { type: string, nullable: true }
+        rank:                { type: string, nullable: true }
+        audience_status:     { $ref: '#/components/schemas/AudienceStatus' }
+        verified:            { type: boolean }
+        verification_status: { $ref: '#/components/schemas/VerificationStatus' }
+        role:                { type: string, enum: [veteran, admin] }
+        account_status:      { type: string, enum: [active, blocked] }
+        city:                { type: string, nullable: true }
+        interests:
+          type: array
+          items: { $ref: '#/components/schemas/EventCategory' }
+          description: Self-selected interests, used for personalized event recommendations.
+        created_at:          { type: string, format: date-time }
+
+    VeteranUpdate:
+      type: object
+      properties:
+        fullname:        { type: string }
+        brigade:         { type: string }
+        rank:            { type: string }
+        audience_status: { $ref: '#/components/schemas/AudienceStatus' }
+        city:            { type: string }
+        interests:
+          type: array
+          items: { $ref: '#/components/schemas/EventCategory' }
+
+    VeteranAdminView:
+      allOf:
+        - $ref: '#/components/schemas/Veteran'
+        - type: object
+          properties:
+            verification:     { $ref: '#/components/schemas/VerificationState' }
+            moderation_notes: { type: string, nullable: true }
+
+    VeteranPage:
+      type: object
+      properties:
+        items:      { type: array, items: { $ref: '#/components/schemas/Veteran' } }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+
+    # ─────── VERIFICATION ───────
+
+    VerificationDocument:
+      type: object
+      properties:
+        id:            { type: string, format: uuid }
+        document_type: { $ref: '#/components/schemas/DocumentType' }
+        url:           { type: string, format: uri }
+        uploaded_at:   { type: string, format: date-time }
+        ai_result:
+          type: object
+          nullable: true
+          properties:
+            decision:       { type: string, enum: [match, no_match, unreadable] }
+            confidence:     { type: number, format: float }
+            extracted_name: { type: string, nullable: true }
+            extracted_id:   { type: string, nullable: true }
+            notes:          { type: string }
+
+    VerificationState:
+      type: object
+      properties:
+        status:       { $ref: '#/components/schemas/VerificationStatus' }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        decided_at:   { type: string, format: date-time, nullable: true }
+        documents:    { type: array, items: { $ref: '#/components/schemas/VerificationDocument' } }
+        ai_summary:   { type: string, nullable: true, description: Aggregated AI vision result }
+
+    # ─────── COMMUNITY ───────
+
+    Community:
+      type: object
+      required: [id, name, owner_id, created_at]
+      properties:
+        id:               { type: string, format: uuid }
+        name:             { type: string }
+        tg_channel_link:  { type: string, format: uri, nullable: true }
+        owner_id:         { type: string, format: uuid }
+        created_at:       { type: string, format: date-time }
+        deleted_at:       { type: string, format: date-time, nullable: true }
+
+    CommunityCreate:
+      type: object
+      required: [name]
+      properties:
+        name:            { type: string, minLength: 2, maxLength: 120 }
+        tg_channel_link: { type: string, format: uri }
+
+    CommunityUpdate:
+      type: object
+      properties:
+        name:            { type: string }
+        tg_channel_link: { type: string, format: uri, nullable: true }
+
+    CommunityPage:
+      type: object
+      properties:
+        items:      { type: array, items: { $ref: '#/components/schemas/Community' } }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+
+    # ─────── EVENT ───────
+
+    Location:
+      type: object
+      properties:
+        city:     { type: string, description: "e.g. 'Київ'" }
+        district: { $ref: '#/components/schemas/KyivDistrict' }
+        address:  { type: string }
+        venue:    { type: string, nullable: true }
+        lat:      { type: number, format: double }
+        lng:      { type: number, format: double }
+
+    Event:
+      type: object
+      required:
+        - id
+        - category
+        - title
+        - quota
+        - seats_taken
+        - starts_at
+        - status
+        - format
+        - for_whom
+        - cost
+        - verified_only
+        - created_by_role
+      properties:
+        id:                  { type: string, format: uuid }
+        category:            { $ref: '#/components/schemas/EventCategory' }
+        status:              { $ref: '#/components/schemas/EventStatus' }
+        title:               { type: string, maxLength: 80 }
+        description:         { type: string, maxLength: 150 }
+        quota:               { type: integer, minimum: 1 }
+        seats_taken:         { type: integer, minimum: 0, description: Includes confirmed and reserved (pending_companions) seats }
+        seats_remaining:     { type: integer, minimum: 0 }
+        starts_at:           { type: string, format: date-time }
+        ends_at:             { type: string, format: date-time, nullable: true }
+        format:              { $ref: '#/components/schemas/EventFormat' }
+        repeat:              { $ref: '#/components/schemas/EventRepeat' }
+        for_whom:            { $ref: '#/components/schemas/ForWhom' }
+        cost:                { $ref: '#/components/schemas/EventCost' }
+        accessibility_tags:  { type: array, items: { $ref: '#/components/schemas/AccessibilityTag' } }
+        verified_only:       { type: boolean }
+        community_id:        { type: string, format: uuid, nullable: true }
+        location:            { $ref: '#/components/schemas/Location' }
+        cover_image_url:     { type: string, format: uri, nullable: true }
+        created_by_role:     { type: string, enum: [admin, veteran] }
+        created_by_id:       { type: string, format: uuid }
+        rejection_reason:    { type: string, nullable: true }
+        created_at:          { type: string, format: date-time }
+
+    EventDetail:
+      allOf:
+        - $ref: '#/components/schemas/Event'
+        - type: object
+          properties:
+            my_registration: { $ref: '#/components/schemas/Registration', nullable: true }
+
+    EventPage:
+      type: object
+      properties:
+        items:      { type: array, items: { $ref: '#/components/schemas/Event' } }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+
+    EventCreate:
+      type: object
+      required: [category, title, quota, starts_at, format, for_whom, cost]
+      description: |
+        Used by both `POST /events` (veterans, forced to `pending_approval`) and
+        `POST /admin/events` (admin, auto-published unless `status=draft` is given).
+      properties:
+        category:           { $ref: '#/components/schemas/EventCategory' }
+        title:              { type: string, minLength: 3, maxLength: 80 }
+        description:        { type: string, maxLength: 150 }
+        quota:              { type: integer, minimum: 1 }
+        starts_at:          { type: string, format: date-time }
+        ends_at:            { type: string, format: date-time }
+        format:             { $ref: '#/components/schemas/EventFormat' }
+        repeat:             { $ref: '#/components/schemas/EventRepeat', default: once }
+        for_whom:           { $ref: '#/components/schemas/ForWhom' }
+        cost:               { $ref: '#/components/schemas/EventCost' }
+        accessibility_tags: { type: array, items: { $ref: '#/components/schemas/AccessibilityTag' } }
+        verified_only:      { type: boolean, default: false }
+        community_id:       { type: string, format: uuid, nullable: true }
+        location:           { $ref: '#/components/schemas/Location' }
+        cover_image_url:    { type: string, format: uri }
+        status:             { $ref: '#/components/schemas/EventStatus', description: Admin-only — ignored on /events POST }
+
+    EventUpdate:
+      type: object
+      description: All fields optional, partial update.
+      properties:
+        category:           { $ref: '#/components/schemas/EventCategory' }
+        title:              { type: string, maxLength: 80 }
+        description:        { type: string, maxLength: 150 }
+        quota:              { type: integer, minimum: 1 }
+        starts_at:          { type: string, format: date-time }
+        ends_at:            { type: string, format: date-time, nullable: true }
+        format:             { $ref: '#/components/schemas/EventFormat' }
+        repeat:             { $ref: '#/components/schemas/EventRepeat' }
+        for_whom:           { $ref: '#/components/schemas/ForWhom' }
+        cost:               { $ref: '#/components/schemas/EventCost' }
+        accessibility_tags: { type: array, items: { $ref: '#/components/schemas/AccessibilityTag' } }
+        verified_only:      { type: boolean }
+        community_id:       { type: string, format: uuid, nullable: true }
+        location:           { $ref: '#/components/schemas/Location' }
+        cover_image_url:    { type: string, format: uri, nullable: true }
+        status:             { $ref: '#/components/schemas/EventStatus' }
+
+    EventFormSchema:
+      type: object
+      description: Drives dynamic admin form rendering.
+      properties:
+        categories:           { type: array, items: { $ref: '#/components/schemas/EventCategoryRef' } }
+        statuses:             { type: array, items: { $ref: '#/components/schemas/EventStatus' } }
+        formats:              { type: array, items: { $ref: '#/components/schemas/EventFormat' } }
+        repeats:              { type: array, items: { $ref: '#/components/schemas/EventRepeat' } }
+        for_whom:             { type: array, items: { $ref: '#/components/schemas/ForWhom' } }
+        cost_tiers:           { type: array, items: { type: string } }
+        accessibility_tags:   { type: array, items: { $ref: '#/components/schemas/AccessibilityTag' } }
+        cities:               { type: array, items: { type: string } }
+        districts:            { type: array, items: { $ref: '#/components/schemas/KyivDistrict' } }
+        limits:               { $ref: '#/components/schemas/LimitsRef' }
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              name:        { type: string }
+              label:       { type: string }
+              widget:      { type: string, enum: [text, textarea, number, date, datetime, select, multiselect, checkbox, file, location, cost] }
+              required:    { type: boolean }
+              constraints: { type: object, additionalProperties: true }
+
+    # ─────── REGISTRATION ───────
+
+    RegistrationCreate:
+      type: object
+      required: [seats]
+      properties:
+        seats:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: Total seats including the creator. Group max is 4.
+        companion_phones:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+            example: "+380501234567"
+          description: |
+            Required when `seats > 1`. Length must equal `seats - 1`.
+            Each phone receives an SMS invitation.
+
+    RegistrationCompanion:
+      type: object
+      properties:
+        id:           { type: string, format: uuid }
+        phone:        { type: string }
+        veteran_id:   { type: string, format: uuid, nullable: true, description: Set once the invitee signs in }
+        fullname:     { type: string, nullable: true }
+        status:       { type: string, enum: [pending, confirmed, declined] }
+        responded_at: { type: string, format: date-time, nullable: true }
+
+    Registration:
+      type: object
+      required: [id, event_id, veteran_id, seats, status, created_at]
+      properties:
+        id:                     { type: string, format: uuid }
+        event_id:               { type: string, format: uuid }
+        veteran_id:             { type: string, format: uuid, description: Group creator }
+        seats:                  { type: integer }
+        status:                 { $ref: '#/components/schemas/RegistrationStatus' }
+        companions:             { type: array, items: { $ref: '#/components/schemas/RegistrationCompanion' } }
+        reservation_expires_at: { type: string, format: date-time, nullable: true, description: Set while status=pending_companions; 24h after creation }
+        created_at:             { type: string, format: date-time }
+        confirmed_at:           { type: string, format: date-time, nullable: true }
+        cancelled_at:           { type: string, format: date-time, nullable: true }
+
+    RegistrationPage:
+      type: object
+      properties:
+        items:      { type: array, items: { $ref: '#/components/schemas/Registration' } }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+
+    Invitation:
+      type: object
+      description: A pending companion slot in someone else's group registration.
+      properties:
+        id:                     { type: string, format: uuid }
+        registration_id:        { type: string, format: uuid }
+        event:                  { $ref: '#/components/schemas/Event' }
+        invited_by_fullname:    { type: string, nullable: true }
+        invited_by_phone:       { type: string }
+        seats_in_group:         { type: integer }
+        reservation_expires_at: { type: string, format: date-time }
+        status:                 { type: string, enum: [pending, confirmed, declined] }
