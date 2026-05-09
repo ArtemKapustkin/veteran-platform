@@ -6,10 +6,10 @@ import (
 )
 
 func NewVerifier(cfg *config.Config, log *logger.Logger) Verifier {
-	if cfg.OpenAIKey == "" {
-		log.Warn("aivision: stub (OPENAI_API_KEY not set)")
+	if cfg.OpenAIKey == "" || cfg.OpenAIAssistantID == "" {
+		log.Warn("aivision: stub (OPENAI_API_KEY or OPENAI_ASSISTANT_ID not set)")
 		return NewStubVerifier(log)
 	}
-	log.Info("aivision: openai", "model", cfg.OpenAIModel)
-	return NewOpenAIVerifier(cfg.OpenAIKey, cfg.OpenAIModel)
+	log.Info("aivision: openai assistants v2", "assistant_id", cfg.OpenAIAssistantID)
+	return NewOpenAIVerifier(cfg.OpenAIKey, cfg.OpenAIAssistantID)
 }
