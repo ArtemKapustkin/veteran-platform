@@ -6,6 +6,7 @@ import (
 	"github.com/ArtemKapustkin/veteran-platform/backend/config"
 	"github.com/ArtemKapustkin/veteran-platform/backend/internal/http_handler"
 	"github.com/ArtemKapustkin/veteran-platform/backend/internal/repository"
+	"github.com/ArtemKapustkin/veteran-platform/backend/internal/service/application"
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/auth"
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/db"
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/logger"
@@ -34,10 +35,14 @@ func App() fx.Option {
 			repository.NewOtpRepository,
 			repository.NewRefreshTokenRepository,
 
+			application.NewAuthService,
+
 			http_handler.NewHealthHandler,
+			http_handler.NewAuthHandler,
 		),
 		fx.Invoke(
 			http_handler.RegisterHealthHandler,
+			http_handler.RegisterAuthHandler,
 			func(*server.Server) {},
 		),
 	)

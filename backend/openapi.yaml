@@ -109,7 +109,14 @@ paths:
   /api/v1/auth/logout:
     post:
       tags: [Auth (veteran)]
-      summary: Revoke current refresh token
+      summary: Revoke a refresh token
+      description: Send the refresh token to revoke. No bearer required — the refresh token itself authenticates the request, mirroring `/auth/refresh`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
       responses:
         '204': { description: Logged out }
 
