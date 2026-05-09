@@ -10,11 +10,12 @@ import (
 type Config struct {
 	HTTPPort int `env:"HTTP_PORT" envDefault:"8088"`
 
-	DBHost string `env:"DB_HOST" envDefault:"localhost"`
-	DBPort int    `env:"DB_PORT" envDefault:"5432"`
-	DBUser string `env:"DB_USER,required"`
-	DBPass string `env:"DB_PASS,required"`
-	DBName string `env:"DB_NAME,required"`
+	DBHost    string `env:"DB_HOST" envDefault:"localhost"`
+	DBPort    int    `env:"DB_PORT" envDefault:"5432"`
+	DBUser    string `env:"DB_USER,required"`
+	DBPass    string `env:"DB_PASS,required"`
+	DBName    string `env:"DB_NAME,required"`
+	DBSSLMode string `env:"DB_SSLMODE" envDefault:"disable"`
 
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 
@@ -43,7 +44,7 @@ func Load() (*Config, error) {
 
 func (c *Config) DSN() string {
 	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		c.DBUser, c.DBPass, c.DBHost, c.DBPort, c.DBName,
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.DBUser, c.DBPass, c.DBHost, c.DBPort, c.DBName, c.DBSSLMode,
 	)
 }
