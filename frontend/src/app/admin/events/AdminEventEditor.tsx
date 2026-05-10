@@ -278,8 +278,6 @@ export function AdminEventEditor({
   const wizardStepMax = maxWizardStep(isEdit);
   const isLastWizardStep = wizardStep === wizardStepMax;
 
-  const validation = useMemo(() => validate(form, isEdit), [form, isEdit]);
-
   const goNextStep = () => {
     const stepErr = validateWizardStep(wizardStep, form, isEdit);
     if (stepErr) {
@@ -301,8 +299,10 @@ export function AdminEventEditor({
   }, [form, isDialog]);
 
   const onSubmit = async () => {
-    if (validation.errors.length > 0) {
-      setError(validation.errors[0]);
+    const invalidStep = firstInvalidWizardStep(form, isEdit);
+    if (invalidStep !== null) {
+      setWizardStep(invalidStep);
+      setError(validateWizardStep(invalidStep, form, isEdit));
       return;
     }
     setSubmitting(true);
@@ -320,9 +320,21 @@ export function AdminEventEditor({
       await onSaved();
     } catch (e) {
       if (e instanceof ApiError) {
-        const detail = e.details
-          ? Object.values(e.details).join("\n")
-          : e.message;
+        const details = readApiValidationDetails(e.details);
+        const jumpStep = details
+          ? firstWizardStepFromApiDetails(details, isEdit)
+          : null;
+        if (jumpStep !== null) {
+          setWizardStep(jumpStep);
+        }
+        const detail =
+          details != null && Object.keys(details).length > 0
+            ? formatAdminApiValidationError(details)
+            : e.details != null &&
+                typeof e.details === "object" &&
+                !Array.isArray(e.details)
+              ? Object.values(e.details as Record<string, unknown>).join("\n")
+              : e.message;
         setError(detail || "Не вдалось зберегти");
       } else {
         setError(e instanceof Error ? e.message : "Не вдалось зберегти");
@@ -626,7 +638,7 @@ export function AdminEventEditor({
           type="button"
           onClick={() => void onSubmit()}
           loading={submitting}
-          disabled={validation.errors.length > 0 && !submitting}
+          disabled={submitting}
         >
           {isEdit ? "Зберегти" : "Створити"}
         </Btn>
@@ -769,8 +781,137 @@ export function AdminEventEditor({
 
 // ─── Validation ─────────────────────────────────────────────────────────
 
-interface ValidationResult {
-  errors: string[];
+function readApiValidationDetails(
+  details: unknown,
+): Record<string, unknown> | undefined {
+  if (!details || typeof details !== "object" || Array.isArray(details))
+    return undefined;
+  return details as Record<string, unknown>;
+}
+
+/** Earliest wizard step failing client-side validation. */
+function firstInvalidWizardStep(
+  form: FormState,
+  isEdit: boolean,
+): number | null {
+  const max = maxWizardStep(isEdit);
+  for (let s = 1; s <= max; s++) {
+    const msg = validateWizardStep(s, form, isEdit);
+    if (msg) return s;
+  }
+  return null;
+}
+
+/**
+ * Wizard step containing the field blamed in an API validation error.
+ * Uses ozzo-validation struct-field keys such as Title, quota, Location.
+ */
+function apiValidationKeyRoot(fieldPath: string): string {
+  return (fieldPath.split(/[.[)]/)[0] ?? "").toLowerCase();
+}
+
+function wizardStepFromApiValidationKey(rawKey: string): number | null {
+  const root = apiValidationKeyRoot(rawKey);
+  if (
+    root === "title" ||
+    root === "description" ||
+    root === "category" ||
+    root === "format" ||
+    root === "repeat" ||
+    root === "forwhom"
+  ) {
+    return 1;
+  }
+  if (
+    root === "quota" ||
+    root === "starts_at" ||
+    root === "ends_at" ||
+    root === "startsat" ||
+    root === "endsat"
+  ) {
+    return 2;
+  }
+  if (
+    root === "cost" ||
+    root === "tier" ||
+    root === "priceuah" ||
+    root === "veteranpriceuah"
+  ) {
+    return 3;
+  }
+  if (
+    root === "location" ||
+    root === "district" ||
+    root === "city" ||
+    root === "address" ||
+    root === "venue" ||
+    root === "lat" ||
+    root === "lng"
+  ) {
+    return 4;
+  }
+  if (
+    root === "accessibility_tags" ||
+    root === "accessibilitytags" ||
+    root === "cover_image_url" ||
+    root === "coverimageurl" ||
+    root === "verified_only" ||
+    root === "verifiedonly"
+  ) {
+    return 5;
+  }
+  return null;
+}
+
+function firstWizardStepFromApiDetails(
+  details: Record<string, unknown>,
+  isEdit: boolean,
+): number | null {
+  let best: number | null = null;
+  const maxAllowed = maxWizardStep(isEdit);
+  for (const key of Object.keys(details)) {
+    const step = wizardStepFromApiValidationKey(key);
+    if (step == null) continue;
+    if (step > maxAllowed) continue;
+    if (best === null || step < best) best = step;
+  }
+  return best;
+}
+
+/** Human-readable Ukrainian hints for frequent server validator strings. */
+function formatAdminApiValidationError(details: Record<string, unknown>): string {
+  const lines: string[] = [];
+  for (const [fieldPath, raw] of Object.entries(details)) {
+    const msg = typeof raw === "string" ? raw : String(raw ?? "");
+    lines.push(adminValidationMessageUk(fieldPath.toLowerCase(), msg));
+  }
+  return lines.join("\n");
+}
+
+function adminValidationMessageUk(fieldPath: string, serverMsg: string): string {
+  const root =
+    apiValidationKeyRoot(fieldPath) ||
+    apiValidationKeyRoot(fieldPath.replace(/^json:/, ""));
+  const m = serverMsg.toLowerCase();
+
+  if (root === "description" || fieldPath.includes("description")) {
+    if (m.includes("150")) {
+      return "Опис не може перевищувати 150 символів.";
+    }
+  }
+  if (root === "title" || fieldPath.includes("title")) {
+    if (m.includes("no more than 80") || m.includes("maximum is 80")) {
+      return "Назва не може перевищувати 80 символів.";
+    }
+    if (
+      m.includes("no less than 3") ||
+      m.includes("minimum is 3") ||
+      m.includes("cannot be blank")
+    ) {
+      return "Назва має містити щонайменше 3 символи.";
+    }
+  }
+  return serverMsg;
 }
 
 function validateWizardStep(
@@ -783,6 +924,9 @@ function validateWizardStep(
     case 1:
       if (!form.title.trim() || form.title.trim().length < 3) {
         return "Назва має містити щонайменше 3 символи.";
+      }
+      if (form.title.trim().length > 80) {
+        return "Назва не може перевищувати 80 символів.";
       }
       if (form.description.trim().length > 150) {
         return "Опис не може перевищувати 150 символів.";
@@ -833,16 +977,6 @@ function validateWizardStep(
     default:
       return null;
   }
-}
-
-function validate(form: FormState, isEdit: boolean): ValidationResult {
-  const errors: string[] = [];
-  const max = maxWizardStep(isEdit);
-  for (let s = 1; s <= max; s++) {
-    const msg = validateWizardStep(s, form, isEdit);
-    if (msg) errors.push(msg);
-  }
-  return { errors };
 }
 
 // ─── Payload builders ──────────────────────────────────────────────────
