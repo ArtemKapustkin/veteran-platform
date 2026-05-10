@@ -7,6 +7,7 @@ import { CloseIcon } from "@/components/icons";
 import { CompanionInviteRow } from "@/components/shared/CompanionInviteRow";
 import type { AppEvent } from "@/data/events";
 import { ApiError, type RegistrationCompanion } from "@/lib/api";
+import { buildInviteText } from "@/lib/inviteMessage";
 import { useEventsStore } from "@/lib/store";
 import { toast } from "@/lib/useToast";
 
@@ -343,15 +344,14 @@ function ShareStep({
   onCancelReservation,
   onDone,
 }: ShareStepProps) {
-  // Build the share message once per event — it's a function of the
-  // event title only and doesn't depend on which slot we're sharing.
-  // Line breaks are deliberate: greeting + invite on separate lines,
-  // a blank line for breathing room, then the call-to-action right
-  // before the URL the row will append on its own line.
+  // Build the share message once per event. Casual tone matches how
+  // people actually invite buddies in chat — a one-line greeting, a
+  // one-liner with day/title/venue/time, a "I'm in" nudge, and a
+  // direct call to action. `CompanionInviteRow` appends the URL on
+  // its own line right under "Пішли з нами?".
   const inviteText = useMemo(
-    () =>
-      `Привіт!\nЗапрошую тебе на «${event.title}».\n\nНатисни посилання, щоб приєднатись до групи — місце для тебе вже заброньовано:`,
-    [event.title],
+    () => buildInviteText(event),
+    [event],
   );
 
   return (

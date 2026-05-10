@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ClockIcon } from "@/components/icons";
 import type { AppEvent } from "@/data/events";
+import { buildInviteText } from "@/lib/inviteMessage";
 import { useAuthStore, useEventsStore } from "@/lib/store";
 import { useMounted } from "@/lib/useMounted";
 import { CompanionInviteRow } from "./CompanionInviteRow";
@@ -27,14 +28,9 @@ export function OrganizerInvitesPanel({ event }: OrganizerInvitesPanelProps) {
   const myVeteranId = useAuthStore((s) => s.veteran?.id);
   const reg = useEventsStore((s) => s.registrations[event.id]);
 
-  // Line breaks here drive the Telegram message layout —
-  // `CompanionInviteRow` appends `\n${shareUrl}` so the URL lands on
-  // its own line under the call-to-action.
-  const inviteText = useMemo(
-    () =>
-      `Привіт!\nЗапрошую тебе на «${event.title}».\n\nНатисни посилання, щоб приєднатись до групи — місце для тебе вже заброньовано:`,
-    [event.title],
-  );
+  // Shared with `GroupRegisterSheet` so the create modal and the
+  // event-page panel produce identical Telegram messages.
+  const inviteText = useMemo(() => buildInviteText(event), [event]);
 
   if (!mounted) return null;
   if (!reg || !myVeteranId) return null;
