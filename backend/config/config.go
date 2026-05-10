@@ -35,6 +35,10 @@ type Config struct {
 	TurboSMSToken  string `env:"TURBOSMS_TOKEN" envDefault:""`
 	TurboSMSSender string `env:"TURBOSMS_SENDER" envDefault:""`
 
+	SMSFlyAPIKey string `env:"SMSFLY_API_KEY" envDefault:""`
+	SMSFlySender string `env:"SMSFLY_SENDER" envDefault:""`
+	SMSFlyURL    string `env:"SMSFLY_URL" envDefault:"https://sms-fly.ua/api2/json.php"`
+
 	OpenAIKey         string `env:"OPENAI_API_KEY" envDefault:""`
 	OpenAIAssistantID string `env:"OPENAI_ASSISTANT_ID" envDefault:""`
 
