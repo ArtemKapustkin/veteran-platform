@@ -9,6 +9,14 @@
   --color-text-muted: #9CA3AF;
   --color-border: #E5E7EB;
   --color-border-soft: #EFEFEC;
+  /* Warm chip surfaces. Tokenized so the high-contrast theme can override
+     them — the a11y drawer (and anyone else who uses chip backgrounds)
+     should reach for these instead of hardcoded hex. */
+  --color-chip: #F2F1ED;
+  --color-chip-strong: #E5E3DD;
+  --color-toggle-off: #E5E3DD;
+  --color-tip: #F8F6F1;
+  --color-backdrop: rgba(0, 0, 0, 0.18);
   --color-primary: #5B8C5E;
   --color-primary-ink: #1F4D34;
   --color-primary-soft: #E5F4EB;
@@ -98,20 +106,68 @@ button {
   height: 0;
 }
 
-html.text-size-sm  { --text-base-scale: 0.9; }
+/* Text size scale — applied to <html> by A11yBoot before hydration so the
+   first paint after reload is correct. WCAG 1.4.4 asks for 200%; the xl
+   step lands at 1.4× which covers most users with TBI / age-related
+   vision changes without breaking layouts that assume ~16px lines. */
+html.text-size-sm  { --text-base-scale: 0.95; }
 html.text-size-md  { --text-base-scale: 1; }
-html.text-size-lg  { --text-base-scale: 1.15; }
+html.text-size-lg  { --text-base-scale: 1.2; }
+html.text-size-xl  { --text-base-scale: 1.4; }
 
+/* Real high-contrast theme. Body text → solid black, surfaces → solid
+   white, no warm beiges (those drop saturation on monochrome displays
+   and don't meet AAA at 14px). The drawer's chip overrides below pull
+   the hardcoded warm hexes onto the same achromatic palette so the
+   toggle track and segmented control don't blend in. */
 html.high-contrast {
-  --color-text2: #4B5563;
-  --color-text-muted: #6B7280;
-  --color-border: #1A1A1A;
-  --color-border-soft: #6B7280;
+  --color-bg: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-stage: #FFFFFF;
+  --color-text: #000000;
+  --color-text2: #1F2937;
+  --color-text-muted: #1F2937;
+  --color-border: #000000;
+  --color-border-soft: #4A5568;
+  --color-chip: #FFFFFF;
+  --color-chip-strong: #E5E5E5;
+  --color-toggle-off: #BFBFBF;
+  --color-tip: #FFFFFF;
+  --color-backdrop: rgba(0, 0, 0, 0.5);
+  --color-primary-soft: #FFFFFF;
 }
 html.high-contrast a,
 html.high-contrast button {
-  outline-color: #1A1A1A;
+  outline-color: #000000;
 }
+html.high-contrast *:focus-visible {
+  outline-width: 3px;
+  outline-color: #000000;
+}
+
+/* Drawer chrome that needs explicit borders in HC mode so it doesn't
+   blend into the white surface. Class names are owned by
+   AccessibilityDrawer.tsx — keep both in sync. */
+html.high-contrast .a11y-chip,
+html.high-contrast .a11y-chip-strong,
+html.high-contrast .a11y-tip,
+html.high-contrast .a11y-toggle,
+html.high-contrast .a11y-size-pill[data-on="true"] {
+  border: 2px solid #000000;
+}
+html.high-contrast .a11y-toggle[data-on="false"] > span {
+  border: 1px solid #000000;
+}
+html.high-contrast .a11y-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Default chip / backdrop fills. Pulled out of inline `style` props in
+   the drawer so high-contrast can override them via CSS variables. */
+.a11y-chip          { background: var(--color-chip); }
+.a11y-chip-strong   { background: var(--color-chip-strong); }
+.a11y-tip           { background: var(--color-tip); }
+.a11y-backdrop      { background: var(--color-backdrop); }
 
 html.reduce-motion *,
 html.reduce-motion *::before,
@@ -127,6 +183,29 @@ html.reduce-motion *::after {
   outline: 2px solid var(--color-primary-ink);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* Skip-to-content link. Visually hidden until focused, then snaps into
+   the top-left as a high-contrast affordance for keyboard users. */
+.a11y-skip-link {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 14px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.a11y-skip-link:focus,
+.a11y-skip-link:focus-visible {
+  top: 8px;
+  outline: 3px solid var(--color-primary-ink);
+  outline-offset: 2px;
 }
 
 /* MapLibre attribution — keep visible but compact */

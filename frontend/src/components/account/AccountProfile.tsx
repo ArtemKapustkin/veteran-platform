@@ -338,7 +338,7 @@ function AccessibilityCard() {
           Доступність та інклюзивність
         </div>
         <div className="text-text2" style={{ fontSize: 13, lineHeight: 1.5 }}>
-          Розмір тексту, контраст, голосовий ввід — підлаштуй під себе.
+          Розмір тексту, високий контраст, менше анімацій — підлаштуй під себе.
         </div>
         <button
           type="button"

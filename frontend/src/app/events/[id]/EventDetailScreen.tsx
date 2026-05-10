@@ -275,7 +275,7 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
         ) : (
           <div className="flex flex-col gap-2.5">
             <Btn
-              kind="secondary"
+              kind="invite"
               size="lg"
               fullWidth
               icon={<UserIcon size={18} />}
@@ -284,7 +284,7 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
               Запросити побратима
             </Btn>
             <Btn
-              kind="primary"
+              kind="secondary"
               size="lg"
               fullWidth
               loading={rsvpPending}

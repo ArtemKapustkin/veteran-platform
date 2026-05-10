@@ -357,22 +357,22 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
               ) : (
                 <div className="flex flex-col gap-2.5">
                   <Btn
-                    kind="primary"
-                    size="lg"
-                    fullWidth
-                    loading={rsvpPending}
-                    onClick={() => handleRsvp(true)}
-                  >
-                    Зареєструватись на подію
-                  </Btn>
-                  <Btn
-                    kind="secondary"
+                    kind="invite"
                     size="lg"
                     fullWidth
                     icon={<UserIcon size={18} />}
                     onClick={openGroup}
                   >
                     Запросити побратима
+                  </Btn>
+                  <Btn
+                    kind="secondary"
+                    size="lg"
+                    fullWidth
+                    loading={rsvpPending}
+                    onClick={() => handleRsvp(true)}
+                  >
+                    Зареєструватись на подію
                   </Btn>
                 </div>
               )}

@@ -10,7 +10,7 @@ import { useMounted } from "@/lib/useMounted";
 /**
  * Mobile top chrome — logo on the left, account chip on the right.
  *
- * The accessibility entry point lives in `BottomToolbar` ("Меню") instead
+ * The accessibility entry point lives in `BottomToolbar` ("Доступність") instead
  * of the header so the header stays focused on identity (who am I logged
  * in as?) while the bottom nav owns global utilities.
  *

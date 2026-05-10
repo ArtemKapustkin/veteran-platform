@@ -1,40 +1,40 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef } from "react";
 import { CloseIcon } from "@/components/icons";
 import { useA11yStore, type TextSize } from "@/lib/store";
-import { isVoiceSupported } from "@/lib/voice";
 
-const voiceSubscribe = () => () => {};
-const voiceClient = () => isVoiceSupported();
-const voiceServer = () => false;
-
-const TOGGLE_BG_ON = "var(--color-success)";
-const TOGGLE_BG_OFF = "#E5E3DD";
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function Toggle({
   label,
   hint,
   on,
   onChange,
-  disabled,
+  id,
 }: {
   label: string;
   hint: string;
   on: boolean;
   onChange: (v: boolean) => void;
-  disabled?: boolean;
+  /** Stable id used to wire aria-labelledby / aria-describedby. */
+  id: string;
 }) {
+  const labelId = `${id}-label`;
+  const hintId = `${id}-hint`;
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div
+          id={labelId}
           className="text-text"
           style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em" }}
         >
           {label}
         </div>
         <div
+          id={hintId}
           className="text-text2 mt-0.5"
           style={{ fontSize: 12, lineHeight: 1.45 }}
         >
@@ -45,15 +45,15 @@ function Toggle({
         type="button"
         role="switch"
         aria-checked={on}
-        aria-label={label}
-        disabled={disabled}
+        aria-labelledby={labelId}
+        aria-describedby={hintId}
         onClick={() => onChange(!on)}
-        className="relative h-7 flex-shrink-0 rounded-[14px]"
+        className="a11y-toggle relative h-7 flex-shrink-0 rounded-[14px]"
+        data-on={on ? "true" : "false"}
         style={{
           width: 46,
-          background: on ? TOGGLE_BG_ON : TOGGLE_BG_OFF,
+          background: on ? "var(--color-success)" : "var(--color-toggle-off)",
           boxShadow: "inset 0 1px 2px rgba(0,0,0,0.08)",
-          opacity: disabled ? 0.5 : 1,
         }}
       >
         <span
@@ -76,23 +76,73 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
     textSize,
     highContrast,
     reduceMotion,
-    voiceInput,
     setTextSize,
     setHighContrast,
     setReduceMotion,
-    setVoiceInput,
+    reset,
   } = useA11yStore();
 
-  const voiceSupported = useSyncExternalStore(
-    voiceSubscribe,
-    voiceClient,
-    voiceServer,
-  );
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Body scroll lock + focus management. On mount we (1) remember which
+  // element the user opened the drawer from so we can restore focus on
+  // close, (2) focus the close button as the first interactive target,
+  // (3) trap Tab inside the dialog. Escape is owned by `Overlays`.
+  useEffect(() => {
+    const previouslyFocused =
+      typeof document !== "undefined"
+        ? (document.activeElement as HTMLElement | null)
+        : null;
+
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const focusables = () =>
+      Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => !el.hasAttribute("data-skip-focus"),
+      );
+
+    // Focus the close button so SR reads the dialog title via aria-labelledby
+    // and Tab proceeds through the controls in DOM order.
+    const initial = focusables()[0];
+    initial?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (active === first || !dialog.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      // Return focus to the trigger so keyboard users keep their place.
+      // Guarded because the trigger may have unmounted during the open.
+      if (previouslyFocused && document.contains(previouslyFocused)) {
+        previouslyFocused.focus();
+      }
+    };
+  }, []);
 
   const SIZE_BUTTONS: { key: TextSize; lab: string; fs: number }[] = [
     { key: "sm", lab: "A−", fs: 13 },
     { key: "md", lab: "A", fs: 16 },
     { key: "lg", lab: "A+", fs: 19 },
+    { key: "xl", lab: "A++", fs: 22 },
   ];
 
   return (
@@ -105,11 +155,14 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
       <button
         type="button"
         aria-label="Закрити"
+        data-skip-focus
+        tabIndex={-1}
         onClick={onClose}
-        className="absolute inset-0 bg-black/15 backdrop-blur-[1px]"
+        className="a11y-backdrop absolute inset-0 backdrop-blur-[1px]"
       />
 
       <div
+        ref={dialogRef}
         className="bg-surface absolute inset-y-0 right-0 flex w-[88%] max-w-[92vw] flex-col rounded-l-[18px] lg:w-[400px]"
         style={{
           boxShadow: "-12px 0 32px rgba(0,0,0,0.12)",
@@ -127,7 +180,7 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={onClose}
             aria-label="Закрити доступність"
-            className="text-text flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#F2F1ED]"
+            className="a11y-chip-strong text-text flex h-9 w-9 items-center justify-center rounded-[11px]"
           >
             <CloseIcon size={18} />
           </button>
@@ -156,15 +209,16 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col gap-6 px-5.5 py-6">
           <div>
             <div
+              id="a11y-text-size-label"
               className="text-text mb-2.5"
               style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em" }}
             >
               Розмір тексту
             </div>
             <div
-              className="flex rounded-xl bg-[#F2F1ED] p-0.5"
+              className="a11y-chip flex rounded-xl p-0.5"
               role="radiogroup"
-              aria-label="Розмір тексту"
+              aria-labelledby="a11y-text-size-label"
             >
               {SIZE_BUTTONS.map((b) => {
                 const on = textSize === b.key;
@@ -174,10 +228,12 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
                     type="button"
                     role="radio"
                     aria-checked={on}
+                    aria-label={`Розмір тексту ${b.lab}`}
                     onClick={() => setTextSize(b.key)}
-                    className="flex-1 rounded-[10px] py-2.5 text-center transition"
+                    className="a11y-size-pill flex-1 rounded-[10px] py-2.5 text-center transition"
+                    data-on={on ? "true" : "false"}
                     style={{
-                      background: on ? "#fff" : "transparent",
+                      background: on ? "var(--color-surface)" : "transparent",
                       color: "var(--color-text)",
                       fontSize: b.fs,
                       fontWeight: 500,
@@ -194,31 +250,43 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
           </div>
 
           <Toggle
+            id="a11y-high-contrast"
             label="Високий контраст"
-            hint="Темніший текст, виразніші межі"
+            hint="Чорний текст на білому, жирніші межі"
             on={highContrast}
             onChange={setHighContrast}
           />
           <Toggle
-            label="Голосовий ввід"
-            hint={
-              voiceSupported
-                ? "Натисни мікрофон у пошуку — кажи що шукаєш"
-                : "Браузер не підтримує — спробуй в Chrome"
-            }
-            on={voiceInput && voiceSupported}
-            onChange={setVoiceInput}
-            disabled={!voiceSupported}
-          />
-          <Toggle
+            id="a11y-reduce-motion"
             label="Менше анімацій"
             hint="Без переходів і пульсацій"
             on={reduceMotion}
             onChange={setReduceMotion}
           />
 
+          <div className="flex items-center justify-between gap-3">
+            <span
+              className="text-text2"
+              style={{ fontSize: 12.5, lineHeight: 1.45 }}
+            >
+              Скинути все до початкових налаштувань
+            </span>
+            <button
+              type="button"
+              onClick={reset}
+              className="a11y-chip text-text flex h-8 items-center rounded-[10px] px-3"
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: "-0.005em",
+              }}
+            >
+              Скинути
+            </button>
+          </div>
+
           <div
-            className="flex gap-2.5 rounded-xl bg-[#F8F6F1] px-4 py-3.5"
+            className="a11y-tip flex gap-2.5 rounded-xl px-4 py-3.5"
             style={{
               fontSize: 13,
               color: "var(--color-text)",
@@ -229,8 +297,8 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
               💡
             </span>
             <span className="text-text2 flex-1">
-              Налаштування зберігаються локально. Можна змінити будь-коли —
-              кнопка ♿ зверху на карті.
+              Налаштування зберігаються лише на цьому пристрої. Можна
+              змінити будь-коли — кнопка «Доступність» у меню.
             </span>
           </div>
         </div>

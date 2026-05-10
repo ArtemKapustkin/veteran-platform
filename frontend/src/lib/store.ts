@@ -379,19 +379,37 @@ export async function hydrateMyRegistrations(): Promise<void> {
   await useEventsStore.getState().hydrate();
 }
 
-// ─── Accessibility prefs (unchanged behaviour) ──────────────
+// ─── Accessibility prefs ────────────────────────────────────
+//
+// Four `html` classes drive the entire a11y story:
+//
+//   text-size-{sm,md,lg,xl}   — root font-size scale (0.95–1.4×)
+//   high-contrast             — body text → black, surfaces → white,
+//                                borders → solid black
+//   reduce-motion             — zeros animation/transition durations
+//
+// The classes are applied here on every setter and replayed by
+// `A11yBoot` before hydration so the first paint after reload is
+// already correct.
 
-export type TextSize = "sm" | "md" | "lg";
+export type TextSize = "sm" | "md" | "lg" | "xl";
+
+const TEXT_SIZE_CLASSES = [
+  "text-size-sm",
+  "text-size-md",
+  "text-size-lg",
+  "text-size-xl",
+] as const;
 
 interface A11yState {
   textSize: TextSize;
   highContrast: boolean;
   reduceMotion: boolean;
-  voiceInput: boolean;
   setTextSize: (s: TextSize) => void;
   setHighContrast: (v: boolean) => void;
   setReduceMotion: (v: boolean) => void;
-  setVoiceInput: (v: boolean) => void;
+  /** Restore the shipped defaults (also resets the OS-derived motion guess). */
+  reset: () => void;
 }
 
 const HTML_CLASS = (className: string, on: boolean) => {
@@ -401,21 +419,23 @@ const HTML_CLASS = (className: string, on: boolean) => {
 
 const SET_TEXT_SIZE = (size: TextSize) => {
   if (typeof document === "undefined") return;
-  document.documentElement.classList.remove(
-    "text-size-sm",
-    "text-size-md",
-    "text-size-lg",
-  );
+  document.documentElement.classList.remove(...TEXT_SIZE_CLASSES);
   document.documentElement.classList.add(`text-size-${size}`);
+};
+
+const A11Y_DEFAULTS: Pick<
+  A11yState,
+  "textSize" | "highContrast" | "reduceMotion"
+> = {
+  textSize: "md",
+  highContrast: false,
+  reduceMotion: false,
 };
 
 export const useA11yStore = create<A11yState>()(
   persist(
     (set) => ({
-      textSize: "md",
-      highContrast: false,
-      reduceMotion: false,
-      voiceInput: true,
+      ...A11Y_DEFAULTS,
       setTextSize: (size) => {
         SET_TEXT_SIZE(size);
         set({ textSize: size });
@@ -428,7 +448,12 @@ export const useA11yStore = create<A11yState>()(
         HTML_CLASS("reduce-motion", v);
         set({ reduceMotion: v });
       },
-      setVoiceInput: (v) => set({ voiceInput: v }),
+      reset: () => {
+        SET_TEXT_SIZE(A11Y_DEFAULTS.textSize);
+        HTML_CLASS("high-contrast", A11Y_DEFAULTS.highContrast);
+        HTML_CLASS("reduce-motion", A11Y_DEFAULTS.reduceMotion);
+        set(A11Y_DEFAULTS);
+      },
     }),
     {
       name: "svoi:a11y",
@@ -438,6 +463,18 @@ export const useA11yStore = create<A11yState>()(
         SET_TEXT_SIZE(state.textSize);
         HTML_CLASS("high-contrast", state.highContrast);
         HTML_CLASS("reduce-motion", state.reduceMotion);
+      },
+      // v2: dropped the dead `voiceInput` field. Older persisted blobs
+      // are forward-compatible (extra keys are ignored), but stripping
+      // explicitly keeps DevTools / localStorage tidy.
+      version: 2,
+      migrate: (persisted) => {
+        if (persisted && typeof persisted === "object") {
+          const next = { ...(persisted as Record<string, unknown>) };
+          delete next.voiceInput;
+          return next as unknown as A11yState;
+        }
+        return persisted as A11yState;
       },
     },
   ),

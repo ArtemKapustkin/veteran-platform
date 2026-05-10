@@ -73,10 +73,26 @@ export function DesktopNav() {
   const mounted = useMounted();
   const loggedIn = useAuthStore((s) => s.loggedIn);
   const role = useAuthStore((s) => s.role);
+  const veteran = useAuthStore((s) => s.veteran);
   // Default to the guest layout on SSR/first paint to avoid hydration drift
   // between server and client (the auth store is localStorage-backed).
   const isLoggedIn = mounted && loggedIn;
   const isAdmin = mounted && role === "admin";
+
+  // Mirror the logic from `AppHeader` (mobile) so the chip shows the real
+  // veteran's name + initials instead of a hardcoded placeholder.
+  const fullName =
+    (isLoggedIn && veteran?.fullname?.trim()) ||
+    (isLoggedIn && role === "admin" ? "Адмін" : "");
+  const firstName = fullName ? fullName.split(/\s+/u)[0] : "";
+  const initials = fullName
+    ? fullName
+        .split(/\s+/u)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((tok) => tok.charAt(0).toUpperCase())
+        .join("") || "С"
+    : "С";
 
   const onAccess = () => {
     const url = new URL(window.location.href);
@@ -147,22 +163,24 @@ export function DesktopNav() {
       {isLoggedIn ? (
         <Link
           href="/account"
-          aria-label="Мій акаунт"
+          aria-label={firstName ? `Мій акаунт — ${firstName}` : "Мій акаунт"}
           aria-current={accountActive ? "page" : undefined}
           className="flex items-center gap-2 rounded-full pl-1.5 pr-3.5 py-1 hover:brightness-95"
           style={{ background: "#F8F6F1" }}
         >
-          <Avatar initial="О" tone="sand" size={30} ring="#F8F6F1" />
-          <span
-            className="text-text"
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              letterSpacing: "-0.005em",
-            }}
-          >
-            Олег
-          </span>
+          <Avatar initial={initials} tone="sand" size={30} ring="#F8F6F1" />
+          {firstName ? (
+            <span
+              className="text-text max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap"
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: "-0.005em",
+              }}
+            >
+              {firstName}
+            </span>
+          ) : null}
         </Link>
       ) : (
         <Link

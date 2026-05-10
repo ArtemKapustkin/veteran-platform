@@ -19,9 +19,12 @@ import {
   CalIcon,
   ClockIcon,
   PinIcon,
+  UserIcon,
   WalkIcon,
 } from "@/components/icons";
+import { GroupRegisterSheet } from "@/components/sheets/GroupRegisterSheet";
 import type { AppEvent } from "@/data/events";
+import { useAuthGuard } from "@/lib/useAuthGuard";
 
 // Snap heights as a fraction of the dialog container (the map view).
 //   closed   → trigger onClose
@@ -51,10 +54,17 @@ export function EventSheet({
   event: AppEvent;
   onClose: () => void;
 }) {
-  // The map-pin sheet is intentionally a quick preview: title, meta,
-  // attendee count, and one CTA to the full event page. RSVP / group
-  // invites / Telegram share all live on /events/[id] so we don't have
-  // to duplicate state and auth-guard plumbing across two surfaces.
+  // The map-pin sheet is a quick preview: title, meta, attendee count,
+  // and two CTAs — invite a buddy (accent) and jump to the full event
+  // page. Direct RSVP / share still live on /events/[id] to keep this
+  // surface lightweight.
+
+  const requireAuth = useAuthGuard();
+  const [groupOpen, setGroupOpen] = useState(false);
+  const openGroup = () => {
+    if (!requireAuth({ hint: "Щоб запросити побратима" })) return;
+    setGroupOpen(true);
+  };
 
   // ─── Draggable-sheet state ────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
@@ -301,22 +311,37 @@ export function EventSheet({
               {event.description}
             </p>
           ) : null}
-          <Link
-            href={`/events/${event.id}`}
-            aria-label={`Перейти до події «${event.title}»`}
-          >
+          <div className="flex flex-col gap-2.5">
             <Btn
-              kind="primary"
+              kind="invite"
               size="lg"
               fullWidth
-              asLink
-              iconRight={<ArrowIcon size={18} />}
+              icon={<UserIcon size={18} />}
+              onClick={openGroup}
             >
-              Перейти до події
+              Запросити побратима
             </Btn>
-          </Link>
+            <Link
+              href={`/events/${event.id}`}
+              aria-label={`Перейти до події «${event.title}»`}
+            >
+              <Btn
+                kind="secondary"
+                size="lg"
+                fullWidth
+                asLink
+                iconRight={<ArrowIcon size={18} />}
+              >
+                Перейти до події
+              </Btn>
+            </Link>
+          </div>
         </div>
       </div>
+
+      {groupOpen ? (
+        <GroupRegisterSheet event={event} onClose={() => setGroupOpen(false)} />
+      ) : null}
     </div>
   );
 }

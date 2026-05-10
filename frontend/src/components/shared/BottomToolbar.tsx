@@ -11,21 +11,21 @@ import type { ReactNode } from "react";
  *
  * - `"map"` / `"list"` light up the same "Події" tab — map↔list lives
  *   inside the screen via the ViewToggle, not here.
- * - `"account"` / `"settings"` are kept for backward-compat callers but no
- *   longer correspond to a rendered tab: account moved into the header,
- *   so on /account nothing in the toolbar is highlighted.
+ * - `"account"` is kept so /account screens can pass it; nothing in the
+ *   toolbar lights up because account moved into the header.
+ *
+ * The `"a11y"` item opens the AccessibilityDrawer modal — it is never
+ * the "active" page, so callers don't pass it.
  */
 export type ToolbarTab =
   | "map"
   | "list"
   | "communities"
   | "saved"
-  | "account"
-  | "settings"
-  | "menu";
+  | "account";
 
 type ToolbarItem = {
-  id: "map" | "communities" | "saved" | "menu";
+  id: "map" | "communities" | "saved" | "a11y";
   label: string;
   icon: ReactNode;
   requireAuth?: boolean;
@@ -37,7 +37,7 @@ const ALL_ITEMS: ToolbarItem[] = [
   { id: "map",         label: "Події",       icon: <PinIcon size={22} /> },
   { id: "communities", label: "Спільноти",   icon: <UsersIcon size={22} /> },
   { id: "saved",       label: "Збережені",   icon: <HeartIcon size={22} />, requireAuth: true },
-  { id: "menu",        label: "Доступність", icon: <AccessIcon size={22} sw={2} /> },
+  { id: "a11y",        label: "Доступність", icon: <AccessIcon size={22} sw={2} /> },
 ];
 
 export function BottomToolbar({ active }: { active: ToolbarTab }) {
@@ -62,9 +62,9 @@ export function BottomToolbar({ active }: { active: ToolbarTab }) {
       case "saved":
         router.push("/saved");
         break;
-      case "menu": {
-        // Open the accessibility drawer via the same `?a11y=1` URL contract
-        // that AppHeader/DesktopNav used to set. `Overlays` listens for it.
+      case "a11y": {
+        // Open the accessibility drawer via the `?a11y=1` URL contract
+        // that DesktopNav also uses. `Overlays` listens for the param.
         const next = new URLSearchParams(params.toString());
         next.set("a11y", "1");
         const path =

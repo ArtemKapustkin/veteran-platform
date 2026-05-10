@@ -9,7 +9,13 @@ export function ResponsiveStage({ children }: { children: ReactNode }) {
   return (
     <div className="bg-stage flex min-h-[100dvh] w-full items-stretch justify-center lg:bg-bg">
       <div
-        className="bg-bg relative w-full max-w-[440px] overflow-hidden sm:shadow-[0_0_40px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.04)] lg:max-w-none lg:overflow-visible lg:shadow-none"
+        // `id="main-content"` is the target of the global skip-to-content
+        // link in app/layout.tsx. `tabIndex={-1}` lets it receive
+        // programmatic focus without becoming a Tab stop. The page bodies
+        // inside still render their own <main> element for landmarks.
+        id="main-content"
+        tabIndex={-1}
+        className="bg-bg relative w-full max-w-[440px] overflow-hidden focus:outline-none sm:shadow-[0_0_40px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.04)] lg:max-w-none lg:overflow-visible lg:shadow-none"
         style={{ minHeight: "100dvh" }}
       >
         {children}

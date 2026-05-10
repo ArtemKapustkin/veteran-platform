@@ -33,10 +33,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="uk" className={`${inter.variable} text-size-md`}>
+    // The text-size-md class is a static fallback for the very first
+    // server-rendered byte before the inline <A11yBoot> script swaps in
+    // the persisted/OS-derived size class. `suppressHydrationWarning`
+    // tells React the class delta on <html> is intentional — same
+    // pattern used by next-themes etc.
+    <html
+      lang="uk"
+      className={`${inter.variable} text-size-md`}
+      suppressHydrationWarning
+    >
       <body>
         <A11yBoot />
         <SessionBoot />
+        {/* Skip-to-content link for keyboard users — visible only on focus,
+            jumps past the header/nav into the page's <main> on every route. */}
+        <a href="#main-content" className="a11y-skip-link">
+          Перейти до подій
+        </a>
         <ResponsiveStage>{children}</ResponsiveStage>
         <ToastHost />
       </body>
