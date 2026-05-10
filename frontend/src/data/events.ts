@@ -14,6 +14,8 @@ export interface AppEvent {
   id: string;
   category: EventCategory;
   coverTone: PhotoTone;
+  /** Public cover URL from backend (`cover_image_url`), or null if none. */
+  coverImageUrl: string | null;
   title: string;
   /** Best-effort human address: venue, then street, then city. */
   place: string;

@@ -252,7 +252,8 @@ export function EventSheet({
               tone={event.coverTone}
               height={140}
               radius={14}
-              label="EVENT · COVER"
+              imageUrl={event.coverImageUrl}
+              label={event.coverImageUrl ? undefined : "EVENT · COVER"}
               alt={`Обкладинка події «${event.title}»`}
             />
           ) : null}

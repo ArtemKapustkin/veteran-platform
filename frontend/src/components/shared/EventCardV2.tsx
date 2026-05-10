@@ -114,6 +114,7 @@ export function EventCardV2({
             tone={event.coverTone}
             fill
             radius={0}
+            imageUrl={event.coverImageUrl}
             alt={`Обкладинка події «${event.title}»`}
           />
           <div className="absolute left-2.5 top-2.5 right-[54px] flex flex-wrap gap-1.5">

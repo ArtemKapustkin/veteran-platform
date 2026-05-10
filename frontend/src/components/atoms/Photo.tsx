@@ -77,7 +77,7 @@ export function Photo({
           }}
         />
       ) : null}
-      {label ? (
+      {label && !imageUrl ? (
         <div
           aria-hidden
           style={{

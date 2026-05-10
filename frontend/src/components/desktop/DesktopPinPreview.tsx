@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Btn } from "@/components/atoms/Btn";
+import { Photo } from "@/components/atoms/Photo";
 import { CounterBlock } from "@/components/shared/CounterBlock";
 import { SeatBar } from "@/components/shared/SeatBar";
 import { ArrowIcon, CloseIcon, UserIcon } from "@/components/icons";
@@ -71,6 +72,20 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
           <CloseIcon size={16} />
         </button>
       </div>
+      {event.coverImageUrl ? (
+        <div
+          className="relative w-full shrink-0 overflow-hidden rounded-xl"
+          style={{ aspectRatio: "16 / 9", maxHeight: 120 }}
+        >
+          <Photo
+            tone={event.coverTone}
+            fill
+            radius={0}
+            imageUrl={event.coverImageUrl}
+            alt={`Обкладинка події «${event.title}»`}
+          />
+        </div>
+      ) : null}
       <div
         className="text-text2 flex flex-wrap"
         style={{ rowGap: 4, columnGap: 12, fontSize: 13 }}

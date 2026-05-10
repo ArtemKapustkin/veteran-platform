@@ -24,7 +24,6 @@ import {
   UserIcon,
 } from "@/components/icons";
 import { GroupRegisterSheet } from "@/components/sheets/GroupRegisterSheet";
-import { InvitationBanner } from "@/components/shared/InvitationBanner";
 import { CATEGORIES } from "@/data/categories";
 import type { AppEvent } from "@/data/events";
 import { useEventsStore } from "@/lib/store";
@@ -115,7 +114,8 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
                 tone={event.coverTone}
                 height={360}
                 radius={20}
-                label="EVENT · COVER 16:9"
+                imageUrl={event.coverImageUrl}
+                label={event.coverImageUrl ? undefined : "EVENT · COVER 16:9"}
                 alt={`Обкладинка події «${event.title}»`}
               />
               <div className="absolute right-3.5 top-3.5 flex gap-2">
@@ -308,8 +308,6 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
               ) : null}
 
               <div className="border-border-soft -mx-5 mt-1 border-t" />
-
-              <InvitationBanner eventId={event.id} variant="compact" />
 
               {isRsvp ? (
                 <div className="flex flex-col gap-3">

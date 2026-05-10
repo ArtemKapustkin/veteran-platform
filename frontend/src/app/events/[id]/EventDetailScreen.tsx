@@ -21,7 +21,6 @@ import {
   UserIcon,
 } from "@/components/icons";
 import { GroupRegisterSheet } from "@/components/sheets/GroupRegisterSheet";
-import { InvitationBanner } from "@/components/shared/InvitationBanner";
 import { CATEGORIES } from "@/data/categories";
 import type { AppEvent } from "@/data/events";
 import { useEventsStore } from "@/lib/store";
@@ -109,7 +108,8 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
           tone={event.coverTone}
           height={240}
           radius={0}
-          label="EVENT · COVER 16:9"
+          imageUrl={event.coverImageUrl}
+          label={event.coverImageUrl ? undefined : "EVENT · COVER 16:9"}
           alt={`Обкладинка події «${event.title}»`}
           style={{ borderRadius: "0 0 20px 20px" }}
         />
@@ -231,7 +231,6 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 26px)",
         }}
       >
-        <InvitationBanner eventId={event.id} />
         {isRsvp ? (
           <>
             <div

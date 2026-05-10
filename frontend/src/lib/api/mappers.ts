@@ -195,10 +195,12 @@ export function apiEventToAppEvent(ev: ApiEvent): AppEvent {
     .map((p) => p.name)
     .filter((n) => n.length > 1)
     .slice(0, 2);
+  const url = ev.cover_image_url?.trim();
   return {
     id: ev.id,
     category: categoryFor(ev.category),
     coverTone: CATEGORY_TO_TONE[ev.category] ?? "cream",
+    coverImageUrl: url ? url : null,
     title: ev.title,
     place: buildPlace(ev.location),
     date: formatDate(ev.starts_at),
