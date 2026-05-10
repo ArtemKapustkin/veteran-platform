@@ -28,7 +28,7 @@ func NewTurboSMSSender(token, sender string) *TurboSMSSender {
 }
 
 func (t *TurboSMSSender) SendCode(ctx context.Context, phone, code string) error {
-	body := fmt.Sprintf("Veteran Platform: ваш код %s. Не передавайте нікому.", code)
+	body := fmt.Sprintf("Ви вже поруч! Ваш код для реєстрації на платформі Свої Поруч: %s. Не передавайте нікому.", code)
 	return t.send(ctx, phone, body)
 }
 

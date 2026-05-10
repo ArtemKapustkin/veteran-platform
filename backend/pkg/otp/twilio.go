@@ -22,7 +22,7 @@ func NewTwilioSender(sid, token, from string) *TwilioSender {
 }
 
 func (t *TwilioSender) SendCode(_ context.Context, phone, code string) error {
-	body := fmt.Sprintf("Veteran Platform: ваш код %s. Не передавайте нікому.", code)
+	body := fmt.Sprintf("Ви вже поруч! Ваш код для реєстрації на платформі Свої Поруч: %s. Не передавайте нікому.", code)
 	return t.send(phone, body)
 }
 
