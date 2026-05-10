@@ -26,31 +26,13 @@ func RegisterRegistrationHandler(r *fhrouter.Router, h *RegistrationHandler) {
 }
 
 type createRegistrationReq struct {
-	Seats           int      `json:"seats"`
-	CompanionPhones []string `json:"companion_phones"`
+	Seats int `json:"seats"`
 }
 
 func (r *createRegistrationReq) Validate() error {
-	rules := []*validation.FieldRules{
+	return validation.ValidateStruct(r,
 		validation.Field(&r.Seats, validation.Required, validation.Min(1), validation.Max(4)),
-	}
-	if r.Seats > 1 {
-		expected := r.Seats - 1
-		rules = append(rules,
-			validation.Field(&r.CompanionPhones,
-				validation.Required,
-				validation.Length(expected, expected),
-				validation.Each(PhoneRule),
-			),
-		)
-	} else {
-		rules = append(rules,
-			validation.Field(&r.CompanionPhones,
-				validation.Length(0, 0),
-			),
-		)
-	}
-	return validation.ValidateStruct(r, rules...)
+	)
 }
 
 func (h *RegistrationHandler) Create(ctx *fasthttp.RequestCtx) {
@@ -59,8 +41,7 @@ func (h *RegistrationHandler) Create(ctx *fasthttp.RequestCtx) {
 	eventID := pathUUID(ctx, "id")
 	creator := server.VeteranID(ctx)
 	res, err := h.regs.Create(ctx, eventID, creator, application.CreateRegistrationInput{
-		Seats:           req.Seats,
-		CompanionPhones: req.CompanionPhones,
+		Seats: req.Seats,
 	})
 	if err != nil {
 		panic(err)

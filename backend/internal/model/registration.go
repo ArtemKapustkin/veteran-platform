@@ -29,10 +29,17 @@ type RegistrationCompanion struct {
 
 	ID             uuid.UUID  `bun:"id,pk,type:uuid"`
 	RegistrationID uuid.UUID  `bun:"registration_id,type:uuid"`
-	Phone          string     `bun:"phone"`
-	VeteranID      *uuid.UUID `bun:"veteran_id,type:uuid"`
-	Fullname       *string    `bun:"fullname"`
-	Status         string     `bun:"status,type:vp.companion_status"`
-	RespondedAt    *time.Time `bun:"responded_at"`
-	CreatedAt      time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	// Phone is kept for backward compatibility with legacy SMS-style
+	// invitations; new rows leave it NULL since invitations now travel
+	// over a Telegram-shareable link addressed by `invite_token`.
+	Phone *string `bun:"phone"`
+	// InviteToken is the URL-safe one-time identifier embedded in the
+	// share link. Unique across vp.registration_companions and resolved
+	// by the public /api/v1/invitations/{token} endpoints.
+	InviteToken *string    `bun:"invite_token"`
+	VeteranID   *uuid.UUID `bun:"veteran_id,type:uuid"`
+	Fullname    *string    `bun:"fullname"`
+	Status      string     `bun:"status,type:vp.companion_status"`
+	RespondedAt *time.Time `bun:"responded_at"`
+	CreatedAt   time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 }

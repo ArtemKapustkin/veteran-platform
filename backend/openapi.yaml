@@ -19,9 +19,12 @@ info:
       - Group registrations: max 4 people total (creator + up to 3 companions),
         24-hour confirmation TTL. Quota is reserved on creation; if any companion
         declines or TTL elapses, the whole registration is cancelled and seats released.
-      - Companions must be registered veterans. Invited phones receive an SMS prompting
-        them to sign up / sign in via the standard OTP flow; once authenticated they
-        see the pending invitation in `/me/invitations` and confirm or decline.
+      - Companions must be registered veterans. Each companion slot is created with
+        a unique `invite_token`; the organizer shares
+        `https://<frontend>/invitations/{token}` (typically via a Telegram chat) and
+        the recipient claims the seat by signing in and POSTing to
+        `/api/v1/invitations/{token}/claim`. The link is the credential — anyone
+        holding it can claim, declining cancels the whole group.
       - Verified-only events: companions must also be verified. Verification uses an
         AI vision integration that checks uploaded documents against an allowed list;
         admin can override the AI decision.
@@ -457,19 +460,19 @@ paths:
       tags: [Registrations]
       summary: Register for an event (solo or group)
       description: |
-        **Solo:** `seats=1`, `companion_phones` omitted → status `confirmed` immediately
-        if quota allows.
+        **Solo:** `seats=1` → status `confirmed` immediately if quota allows.
 
-        **Group:** `seats >= 2`, `companion_phones` length must equal `seats - 1`,
-        max group size is 4 (so `seats <= 4`). Status starts as `pending_companions`.
-        Quota is **reserved** for the full group on creation. Each companion phone
-        receives an SMS inviting them to sign up / log in; once authenticated they
-        confirm or decline via `/me/invitations`. The reservation expires 24h after
-        creation — if not all companions have confirmed by then, the whole
-        registration is auto-cancelled and seats released.
+        **Group:** `seats >= 2`, max group size is 4 (so `seats <= 4`).
+        Status starts as `pending_companions`. Quota is **reserved** for the full
+        group on creation. The response includes one `invite_token` per companion
+        slot under `companions[]`; the organizer is expected to build a share URL
+        (`<frontend>/invitations/{token}`) and send it via Telegram. The
+        reservation expires 24h after creation — if not all companions have
+        claimed their slot by then, the whole registration is auto-cancelled and
+        seats released.
 
-        For verified-only events, every companion must be a verified veteran at the
-        moment of confirmation; otherwise their confirm fails with 403.
+        For verified-only events, every companion must be a verified veteran at
+        the moment of claiming; otherwise their claim fails with 403.
       requestBody:
         required: true
         content:
@@ -1208,23 +1211,24 @@ components:
           type: integer
           minimum: 1
           maximum: 4
-          description: Total seats including the creator. Group max is 4.
-        companion_phones:
-          type: array
-          maxItems: 3
-          items:
-            type: string
-            example: "+380501234567"
           description: |
-            Required when `seats > 1`. Length must equal `seats - 1`.
-            Each phone receives an SMS invitation.
+            Total seats including the creator. Group max is 4. The server
+            generates `seats - 1` invitation tokens; the organizer shares them
+            as Telegram links.
 
     RegistrationCompanion:
       type: object
       properties:
         id:           { type: string, format: uuid }
-        phone:        { type: string }
-        veteran_id:   { type: string, format: uuid, nullable: true, description: Set once the invitee signs in }
+        invite_token:
+          type: string
+          nullable: true
+          description: |
+            URL-safe one-time token used in
+            `<frontend>/invitations/{token}`. Returned only on the
+            organizer's view of their own registration.
+        phone:        { type: string, nullable: true, description: Legacy SMS-flow phone, null on new rows }
+        veteran_id:   { type: string, format: uuid, nullable: true, description: Set once the invitee claims via the share link }
         fullname:     { type: string, nullable: true }
         status:       { type: string, enum: [pending, confirmed, declined] }
         responded_at: { type: string, format: date-time, nullable: true }

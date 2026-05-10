@@ -75,6 +75,22 @@ func (r *RegistrationRepository) FindCompanionByID(ctx context.Context, id uuid.
 	return &c, nil
 }
 
+// FindCompanionByInviteToken resolves the public Telegram-share token
+// to the companion row that owns it. Returns nil when the token is
+// unknown so callers can return 404 to anonymous probes without
+// leaking which tokens have ever existed.
+func (r *RegistrationRepository) FindCompanionByInviteToken(ctx context.Context, token string) (*model.RegistrationCompanion, error) {
+	var c model.RegistrationCompanion
+	err := r.db.NewSelect().Model(&c).Where("invite_token = ?", token).Scan(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (r *RegistrationRepository) ListMine(ctx context.Context, veteranID uuid.UUID, status *string, limit int) ([]model.Registration, error) {
 	var rows []model.Registration
 	q := r.db.NewSelect().
@@ -184,16 +200,23 @@ func idsToPgArray(ids []uuid.UUID) string {
 	return string(out)
 }
 
-func (r *RegistrationRepository) ListPendingInvitationsForPhone(ctx context.Context, phone string) ([]model.RegistrationCompanion, error) {
-	var rows []model.RegistrationCompanion
+// FindActiveClaimedCompanion returns a companion row that the given
+// veteran has already confirmed for the given event (any registration).
+// Used by the public invitation lookup so the landing page can detect
+// the "you already accepted this" case and skip the claim button.
+func (r *RegistrationRepository) FindActiveClaimedCompanion(ctx context.Context, eventID, veteranID uuid.UUID) (*model.RegistrationCompanion, error) {
+	var c model.RegistrationCompanion
 	err := r.db.NewSelect().
-		Model(&rows).
+		Model(&c).
 		Join("JOIN vp.registrations r ON r.id = registration_companion.registration_id").
-		Where("registration_companion.phone = ? AND registration_companion.status = 'pending' AND r.status = 'pending_companions' AND r.reservation_expires_at > now()", phone).
-		Order("registration_companion.created_at DESC").
+		Where("r.event_id = ? AND registration_companion.veteran_id = ? AND registration_companion.status = 'confirmed'", eventID, veteranID).
+		Limit(1).
 		Scan(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return &c, nil
 }

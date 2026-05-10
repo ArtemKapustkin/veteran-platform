@@ -9,8 +9,14 @@ import (
 )
 
 type RegistrationCompanion struct {
-	ID          uuid.UUID  `json:"id"`
-	Phone       string     `json:"phone"`
+	ID uuid.UUID `json:"id"`
+	// InviteToken lets the organizer build a Telegram share URL on the
+	// client (`<frontend>/invitations/{token}`) without us having to
+	// know the public origin server-side. Always present on freshly
+	// created group registrations; legacy rows backfilled by the
+	// 20260510150000 migration also expose one.
+	InviteToken *string    `json:"invite_token,omitempty"`
+	Phone       *string    `json:"phone,omitempty"`
 	VeteranID   *uuid.UUID `json:"veteran_id,omitempty"`
 	Fullname    *string    `json:"fullname,omitempty"`
 	Status      string     `json:"status"`
@@ -35,15 +41,22 @@ type RegistrationPage struct {
 	Pagination Pagination      `json:"pagination"`
 }
 
-type Invitation struct {
-	ID                   uuid.UUID `json:"id"`
+// InvitationLookup is the payload for the public
+// `GET /api/v1/invitations/{token}` endpoint. Returns just enough
+// for the landing page to render an event preview + organizer name
+// without leaking other companions or the inviter's phone.
+type InvitationLookup struct {
+	Token                string    `json:"token"`
 	RegistrationID       uuid.UUID `json:"registration_id"`
 	Event                *Event    `json:"event"`
 	InvitedByFullname    *string   `json:"invited_by_fullname,omitempty"`
-	InvitedByPhone       string    `json:"invited_by_phone"`
 	SeatsInGroup         int       `json:"seats_in_group"`
 	ReservationExpiresAt time.Time `json:"reservation_expires_at"`
 	Status               string    `json:"status"`
+	// AlreadyClaimedByMe is true when the caller is authenticated and
+	// the slot has already been confirmed by them. UI uses it to skip
+	// the claim button and route straight to the event.
+	AlreadyClaimedByMe bool `json:"already_claimed_by_me,omitempty"`
 }
 
 func FromRegistration(r *model.Registration) *Registration {
@@ -54,6 +67,7 @@ func FromRegistration(r *model.Registration) *Registration {
 	for _, c := range r.Companions {
 		companions = append(companions, RegistrationCompanion{
 			ID:          c.ID,
+			InviteToken: c.InviteToken,
 			Phone:       c.Phone,
 			VeteranID:   c.VeteranID,
 			Fullname:    c.Fullname,

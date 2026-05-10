@@ -394,8 +394,17 @@ WITH new_group AS (
   )
   RETURNING id
 )
-INSERT INTO vp.registration_companions (id, registration_id, phone, fullname, status, created_at)
-SELECT gen_random_uuid(), nr.id, phone, NULL, 'pending'::vp.companion_status, now() - interval '4 hours'
+INSERT INTO vp.registration_companions (id, registration_id, phone, invite_token, fullname, status, created_at)
+SELECT
+  gen_random_uuid(),
+  nr.id,
+  phone,
+  -- URL-safe base64 token, padding stripped to match what
+  -- backend/internal/service/application/registration_service.go emits.
+  rtrim(translate(encode(gen_random_bytes(18), 'base64'), '+/', '-_'), '='),
+  NULL,
+  'pending'::vp.companion_status,
+  now() - interval '4 hours'
 FROM new_group nr,
      (VALUES ('+380500000099'), ('+380500000098')) AS p(phone);
 

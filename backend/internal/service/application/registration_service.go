@@ -2,6 +2,9 @@ package application
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,8 +21,12 @@ import (
 
 const (
 	maxGroupSize        = 4
-	groupReservationTTL = 2 * time.Hour
+	groupReservationTTL = 24 * time.Hour
 	expirerInterval     = time.Minute
+	// inviteTokenBytes is the entropy size for `invite_token`. 18 bytes
+	// → 24 base64 characters; collision-resistant for a humble database
+	// and short enough to keep the share URL friendly inside Telegram.
+	inviteTokenBytes = 18
 )
 
 type RegistrationService struct {
@@ -45,19 +52,15 @@ func NewRegistrationService(
 }
 
 type CreateRegistrationInput struct {
-	Seats           int
-	CompanionPhones []string
+	// Seats is the total group size including the creator (1..4).
+	// Solo registration uses Seats=1; group uses Seats>=2 and the
+	// service generates Seats-1 invitation tokens.
+	Seats int
 }
 
 func (s *RegistrationService) Create(ctx context.Context, eventID, creatorID uuid.UUID, in CreateRegistrationInput) (*view.Registration, error) {
 	if in.Seats < 1 || in.Seats > maxGroupSize {
 		return nil, apperrors.NewValidationError("seats must be between 1 and 4", nil)
-	}
-	if in.Seats == 1 && len(in.CompanionPhones) > 0 {
-		return nil, apperrors.NewValidationError("companions provided for solo registration", nil)
-	}
-	if in.Seats > 1 && len(in.CompanionPhones) != in.Seats-1 {
-		return nil, apperrors.NewValidationError("companion_phones length must equal seats-1", nil)
 	}
 
 	event, err := s.events.FindByID(ctx, eventID)
@@ -80,21 +83,6 @@ func (s *RegistrationService) Create(ctx context.Context, eventID, creatorID uui
 	}
 	if event.VerifiedOnly && !creator.Verified {
 		return nil, apperrors.NewForbiddenError("event requires verified veteran status")
-	}
-
-	if creator.Phone != nil {
-		for _, p := range in.CompanionPhones {
-			if p == *creator.Phone {
-				return nil, apperrors.NewValidationError("cannot invite yourself", nil)
-			}
-		}
-	}
-	seen := make(map[string]bool, len(in.CompanionPhones))
-	for _, p := range in.CompanionPhones {
-		if seen[p] {
-			return nil, apperrors.NewValidationError("duplicate companion phone", nil)
-		}
-		seen[p] = true
 	}
 
 	if existing, err := s.regs.FindActiveByEventAndVeteran(ctx, eventID, creatorID); err != nil {
@@ -121,12 +109,20 @@ func (s *RegistrationService) Create(ctx context.Context, eventID, creatorID uui
 		registration.ReservationExpiresAt = &expires
 	}
 
-	companions := make([]*model.RegistrationCompanion, 0, len(in.CompanionPhones))
-	for _, phone := range in.CompanionPhones {
+	companionCount := 0
+	if in.Seats > 1 {
+		companionCount = in.Seats - 1
+	}
+	companions := make([]*model.RegistrationCompanion, 0, companionCount)
+	for i := 0; i < companionCount; i++ {
+		token, err := generateInviteToken()
+		if err != nil {
+			return nil, err
+		}
 		companions = append(companions, &model.RegistrationCompanion{
 			ID:             uuid.New(),
 			RegistrationID: registration.ID,
-			Phone:          phone,
+			InviteToken:    &token,
 			Status:         "pending",
 			CreatedAt:      now,
 		})
@@ -161,13 +157,19 @@ func (s *RegistrationService) Create(ctx context.Context, eventID, creatorID uui
 		return nil, err
 	}
 
-	for _, phone := range in.CompanionPhones {
-		if err := s.sender.SendInvitation(ctx, phone, event.Title); err != nil {
-			s.log.Warn("invitation send failed", "phone", phone, "err", err.Error())
-		}
-	}
-
 	return view.FromRegistration(registration), nil
+}
+
+// generateInviteToken returns a URL-safe random token used in the
+// public Telegram-share link `<frontend>/invitations/{token}`. We
+// strip padding so the token round-trips cleanly inside an
+// `https://t.me/share/url?url=…` query parameter.
+func generateInviteToken() (string, error) {
+	buf := make([]byte, inviteTokenBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return strings.TrimRight(base64.URLEncoding.EncodeToString(buf), "="), nil
 }
 
 func (s *RegistrationService) Cancel(ctx context.Context, eventID, registrationID, callerID uuid.UUID) error {
@@ -242,66 +244,65 @@ func (s *RegistrationService) ListEventRoster(ctx context.Context, eventID, call
 	return mapRegistrationPage(rows), nil
 }
 
-func (s *RegistrationService) ListInvitations(ctx context.Context, caller *model.Veteran) ([]*view.Invitation, error) {
-	if caller.Phone == nil {
-		return []*view.Invitation{}, nil
-	}
-	companions, err := s.regs.ListPendingInvitationsForPhone(ctx, *caller.Phone)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*view.Invitation, 0, len(companions))
-	for _, c := range companions {
-		reg, err := s.regs.FindByID(ctx, c.RegistrationID)
-		if err != nil {
-			return nil, err
-		}
-		if reg == nil {
-			continue
-		}
-		event, err := s.events.FindByID(ctx, reg.EventID)
-		if err != nil {
-			return nil, err
-		}
-		organizer, err := s.veterans.FindByID(ctx, reg.VeteranID)
-		if err != nil {
-			return nil, err
-		}
-		inv := &view.Invitation{
-			ID:             c.ID,
-			RegistrationID: c.RegistrationID,
-			Event:          view.FromEvent(event),
-			SeatsInGroup:   reg.Seats,
-			Status:         c.Status,
-		}
-		if reg.ReservationExpiresAt != nil {
-			inv.ReservationExpiresAt = *reg.ReservationExpiresAt
-		}
-		if organizer != nil {
-			inv.InvitedByFullname = organizer.Fullname
-			if organizer.Phone != nil {
-				inv.InvitedByPhone = *organizer.Phone
-			}
-		}
-		out = append(out, inv)
-	}
-	return out, nil
-}
-
-func (s *RegistrationService) ConfirmInvitation(ctx context.Context, invitationID uuid.UUID, caller *model.Veteran) (*view.Registration, error) {
-	now := time.Now()
-	companion, err := s.regs.FindCompanionByID(ctx, invitationID)
+// LookupInvitation resolves a public Telegram-share token to an event
+// preview + organizer name so the landing page can render before the
+// recipient signs in. `viewerID` may be uuid.Nil — when set, the
+// response includes whether the viewer has already claimed this slot
+// so the UI can route them straight to the event.
+func (s *RegistrationService) LookupInvitation(ctx context.Context, token string, viewerID uuid.UUID) (*view.InvitationLookup, error) {
+	companion, err := s.regs.FindCompanionByInviteToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
 	if companion == nil {
 		return nil, apperrors.NewNotFoundError("invitation not found")
 	}
-	if caller.Phone == nil || *caller.Phone != companion.Phone {
-		return nil, apperrors.NewForbiddenError("invitation not for you")
+	reg, err := s.regs.FindByID(ctx, companion.RegistrationID)
+	if err != nil {
+		return nil, err
 	}
-	if companion.Status != "pending" {
-		return nil, apperrors.NewConflictError("invitation already responded to")
+	if reg == nil {
+		return nil, apperrors.NewNotFoundError("invitation not found")
+	}
+	event, err := s.events.FindByID(ctx, reg.EventID)
+	if err != nil {
+		return nil, err
+	}
+	organizer, err := s.veterans.FindByID(ctx, reg.VeteranID)
+	if err != nil {
+		return nil, err
+	}
+	out := &view.InvitationLookup{
+		Token:          token,
+		RegistrationID: reg.ID,
+		Event:          view.FromEvent(event),
+		SeatsInGroup:   reg.Seats,
+		Status:         companion.Status,
+	}
+	if reg.ReservationExpiresAt != nil {
+		out.ReservationExpiresAt = *reg.ReservationExpiresAt
+	}
+	if organizer != nil {
+		out.InvitedByFullname = organizer.Fullname
+	}
+	if viewerID != uuid.Nil && companion.VeteranID != nil && *companion.VeteranID == viewerID && companion.Status == "confirmed" {
+		out.AlreadyClaimedByMe = true
+	}
+	return out, nil
+}
+
+// ClaimInvitation confirms the slot owned by `token` for the calling
+// veteran. The caller can be anyone with the link — that's by design;
+// the link is the credential. Idempotent: a viewer who already
+// claimed the slot just gets the current registration back.
+func (s *RegistrationService) ClaimInvitation(ctx context.Context, token string, caller *model.Veteran) (*view.Registration, error) {
+	now := time.Now()
+	companion, err := s.regs.FindCompanionByInviteToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	if companion == nil {
+		return nil, apperrors.NewNotFoundError("invitation not found")
 	}
 	reg, err := s.regs.FindByID(ctx, companion.RegistrationID)
 	if err != nil {
@@ -310,8 +311,22 @@ func (s *RegistrationService) ConfirmInvitation(ctx context.Context, invitationI
 	if reg == nil {
 		return nil, apperrors.NewNotFoundError("registration not found")
 	}
+	if reg.VeteranID == caller.ID {
+		return nil, apperrors.NewConflictError("you organized this group; you're already in")
+	}
+
+	if companion.Status == "confirmed" && companion.VeteranID != nil && *companion.VeteranID == caller.ID {
+		full, err := s.regs.FindByIDWithCompanions(ctx, reg.ID)
+		if err != nil {
+			return nil, err
+		}
+		return view.FromRegistration(full), nil
+	}
+	if companion.Status != "pending" {
+		return nil, apperrors.NewConflictError("invitation already used")
+	}
 	if reg.Status != "pending_companions" {
-		return nil, apperrors.NewConflictError("registration is no longer pending companions")
+		return nil, apperrors.NewConflictError("registration is no longer accepting companions")
 	}
 	if reg.ReservationExpiresAt == nil || !reg.ReservationExpiresAt.After(now) {
 		return nil, apperrors.NewConflictError("invitation expired")
@@ -324,16 +339,27 @@ func (s *RegistrationService) ConfirmInvitation(ctx context.Context, invitationI
 		return nil, apperrors.NewForbiddenError("event requires verified veteran status")
 	}
 
+	if existing, err := s.regs.FindActiveByEventAndVeteran(ctx, reg.EventID, caller.ID); err != nil {
+		return nil, err
+	} else if existing != nil {
+		return nil, apperrors.NewConflictError("you already have an active registration for this event")
+	}
+
 	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.NewUpdate().
+		res, err := tx.NewUpdate().
 			Model((*model.RegistrationCompanion)(nil)).
 			Set("status = ?", "confirmed").
 			Set("veteran_id = ?", caller.ID).
 			Set("fullname = ?", caller.Fullname).
 			Set("responded_at = ?", now).
-			Where("id = ? AND status = 'pending'", invitationID).
-			Exec(ctx); err != nil {
+			Where("id = ? AND status = 'pending'", companion.ID).
+			Exec(ctx)
+		if err != nil {
 			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return apperrors.NewConflictError("invitation already used")
 		}
 		count, err := tx.NewSelect().
 			Model((*model.RegistrationCompanion)(nil)).
@@ -366,20 +392,21 @@ func (s *RegistrationService) ConfirmInvitation(ctx context.Context, invitationI
 	return view.FromRegistration(full), nil
 }
 
-func (s *RegistrationService) DeclineInvitation(ctx context.Context, invitationID uuid.UUID, caller *model.Veteran) (*view.Registration, error) {
+// DeclineInvitation cancels the whole group reservation when one of
+// the invitees declines via their share link. Matches the old
+// SMS-flow semantics: a single decline releases every seat back to
+// the quota so the organizer can re-share or pick someone else.
+func (s *RegistrationService) DeclineInvitation(ctx context.Context, token string, caller *model.Veteran) (*view.Registration, error) {
 	now := time.Now()
-	companion, err := s.regs.FindCompanionByID(ctx, invitationID)
+	companion, err := s.regs.FindCompanionByInviteToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
 	if companion == nil {
 		return nil, apperrors.NewNotFoundError("invitation not found")
 	}
-	if caller.Phone == nil || *caller.Phone != companion.Phone {
-		return nil, apperrors.NewForbiddenError("invitation not for you")
-	}
 	if companion.Status != "pending" {
-		return nil, apperrors.NewConflictError("invitation already responded to")
+		return nil, apperrors.NewConflictError("invitation already used")
 	}
 	reg, err := s.regs.FindByID(ctx, companion.RegistrationID)
 	if err != nil {
@@ -396,7 +423,7 @@ func (s *RegistrationService) DeclineInvitation(ctx context.Context, invitationI
 			Set("veteran_id = ?", caller.ID).
 			Set("fullname = ?", caller.Fullname).
 			Set("responded_at = ?", now).
-			Where("id = ?", invitationID).
+			Where("id = ?", companion.ID).
 			Exec(ctx); err != nil {
 			return err
 		}
