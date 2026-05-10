@@ -30,28 +30,37 @@ make reset            # full nuke: down -v, postgres up, migrate, seed
 `make seed` requires the `postgres` compose service to be running and
 all migrations applied. `make reset` does the whole sequence.
 
-## real_events.sql (50 events parsed from public Telegram channels)
+## Real-data overlay (50 events from public Telegram channels)
 
-`real_events.sql` is a separate idempotent INSERT block with 50 real
-event titles + descriptions parsed out of public Telegram channels
-(`Київ Мілітарі Хаб|Заходи` and `Ветеран Хаб на зв'язку`). Useful for
-demos where you want the FE filter chips to bite on real Ukrainian
-content rather than the 12 hand-curated rows in `seed.sql`.
+Four supplementary files load 50 real events parsed out of two public
+Telegram channels (`Київ Мілітарі Хаб|Заходи` and `Ветеран Хаб на зв'язку`)
+plus the supporting rows they depend on. Useful for demos where you want
+the FE filter chips and seat counters to bite on real Ukrainian content
+rather than the 12 hand-curated rows in `seed.sql`.
 
-Apply manually after `make seed` (or directly against Cloud SQL):
+Apply in this order (each is idempotent — `INSERT … ON CONFLICT DO UPDATE`):
 
 ```bash
-docker exec -i veteran-platform-postgres-1 \
-  psql -U veteran -d veteran_platform < deployments/seed/real_events.sql
+for f in extra_veterans.sql source_communities.sql real_events.sql real_registrations.sql; do
+  docker exec -i veteran-platform-postgres-1 \
+    psql -U veteran -d veteran_platform < deployments/seed/$f
+done
 ```
 
-`created_by_id` references the prod admin row UUID
-`52fc80db-740e-465f-a3ca-d37134e33c31`. For local dev you'll need to
-either insert that veteran row first or adjust the SQL to point at a
-seeded UUID (e.g. `11111111-…` from `seed.sql`).
+| File | Inserts | Notes |
+|---|---|---|
+| `extra_veterans.sql` | 14 non-admin seed veterans | Acts as the registrant pool. Uses the same UUIDs (`22222222-…` … `ffffffff-…`) as `seed.sql` so it's harmless to layer on top. |
+| `source_communities.sql` | 2 communities for the source TG channels | `a0000005-…` = Київ Мілітарі Хаб, `a0000006-…` = Ветеран Хаб. |
+| `real_events.sql` | 50 events | Real Kyiv venues + addresses (5 per category) with accurate lat/lng so map pins land where you'd expect. `community_id` points to whichever channel the event came from; `created_by_id` references the prod admin row `52fc80db-…`. Past dates shifted +1 year so events appear upcoming in the demo. |
+| `real_registrations.sql` | ~415 registrations + sync of `events.seats_taken` | Distribution: 10% empty, 30% low, 30% half, 20% nearly full, 10% full (capped at 14 by available registrants). Gives the UI realistic counters like 6/12, 14/30, 0/30 etc. |
 
-The original parser script lived in `/tmp/parse_events.py` and is not
-checked in — the SQL output is treated as the canonical artifact.
+For local dev `created_by_id` and the `52fc80db-…` admin row don't exist
+unless you inserted it manually — either create that row first or
+search-and-replace the UUID with `11111111-…-111111111111` (the seed
+admin from `seed.sql`).
+
+The original parser script lived in `/tmp/parse_v2.py` and is not
+checked in — the SQL outputs are treated as the canonical artifacts.
 
 ## Logging in as a seeded user
 
