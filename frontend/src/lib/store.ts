@@ -182,13 +182,18 @@ export function gateFor(
  */
 export async function refreshMe(): Promise<Veteran | null> {
   if (!useAuthStore.getState().isAuthenticated()) return null;
+  const role = useAuthStore.getState().role;
   try {
     const veteran = await meApi.get();
     useAuthStore.getState().setVeteran(veteran);
     return veteran;
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) {
-      useAuthStore.getState().clearSession();
+      // `loginAsAdmin` notes /me may 401 for admins in some setups; never
+      // wipe an admin session just because profile bootstrap failed.
+      if (role !== "admin") {
+        useAuthStore.getState().clearSession();
+      }
     }
     return null;
   }

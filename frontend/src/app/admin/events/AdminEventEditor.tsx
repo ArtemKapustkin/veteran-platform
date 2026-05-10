@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Btn } from "@/components/atoms/Btn";
 import { Pill } from "@/components/atoms/Pill";
 import { EventPagePreview } from "@/components/add-event/EventPagePreview";
+import { LocationPicker } from "@/components/add-event/LocationPicker";
 import { ArrowIcon, BackIcon, CloseIcon } from "@/components/icons";
 import {
   AdminEventStepper,
@@ -493,40 +494,33 @@ export function AdminEventEditor({
                   />
                 </Field>
               </Grid>
-              <Grid cols={2}>
-                <Field label="Адреса">
-                  <Input
-                    value={form.address}
-                    onChange={(v) => set("address", v)}
-                    placeholder="вул. Хрещатик, 1"
-                  />
-                </Field>
-                <Field label="Заклад">
-                  <Input
-                    value={form.venue}
-                    onChange={(v) => set("venue", v)}
-                    placeholder="Простір “Свої”"
-                  />
-                </Field>
-              </Grid>
-              <Grid cols={2}>
-                <Field label="Lat">
-                  <Input
-                    value={form.lat}
-                    onChange={(v) => set("lat", v)}
-                    placeholder="50.4501"
-                    inputMode="decimal"
-                  />
-                </Field>
-                <Field label="Lng">
-                  <Input
-                    value={form.lng}
-                    onChange={(v) => set("lng", v)}
-                    placeholder="30.5234"
-                    inputMode="decimal"
-                  />
-                </Field>
-              </Grid>
+              <Field label="Заклад">
+                <Input
+                  value={form.venue}
+                  onChange={(v) => set("venue", v)}
+                  placeholder="Простір “Свої”"
+                />
+              </Field>
+              <Field
+                label="Вулиця й точка на карті"
+                hint="Підказки з OpenStreetMap (Україна). Натисни на карту або перетягни маркер, щоб виставити координати — адреса оновиться автоматично."
+              >
+                <LocationPicker
+                  inputId="admin-event-location"
+                  placeholder="вул. Хрещатик, 1 або назва місця"
+                  place={form.address}
+                  lat={parseCoordStr(form.lat)}
+                  lng={parseCoordStr(form.lng)}
+                  onChange={(v) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      address: v.place,
+                      lat: v.lat != null ? String(v.lat) : "",
+                      lng: v.lng != null ? String(v.lng) : "",
+                    }))
+                  }
+                />
+              </Field>
             </Section>
             ) : null}
 
@@ -925,6 +919,11 @@ function buildUpdatePayload(
   }
 
   return payload;
+}
+
+function parseCoordStr(s: string): number | null {
+  const n = Number.parseFloat(s.trim());
+  return Number.isFinite(n) ? n : null;
 }
 
 function buildCost(form: FormState) {

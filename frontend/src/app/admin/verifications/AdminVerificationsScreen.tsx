@@ -114,7 +114,8 @@ export function AdminVerificationsScreen() {
     async (signal?: AbortSignal) => {
       try {
         const page = await adminVeteransApi.list(filters, signal);
-        setItems(page.items);
+        const list = page?.items;
+        setItems(Array.isArray(list) ? list : []);
         setError(null);
       } catch (e) {
         if (signal?.aborted) return;

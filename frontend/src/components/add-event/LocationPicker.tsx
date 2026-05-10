@@ -115,12 +115,15 @@ export function LocationPicker({
   lng,
   onChange,
   inputId,
+  placeholder = "Кінотеатр Жовтень, Поділ",
 }: {
   place: string;
   lat: number | null;
   lng: number | null;
   onChange: (value: LocationValue) => void;
   inputId?: string;
+  /** Shown when the field is empty — defaults to the community add-event copy. */
+  placeholder?: string;
 }) {
   const listboxId = useId();
   const [open, setOpen] = useState(false);
@@ -299,7 +302,7 @@ export function LocationPicker({
               setOpen(false);
             }
           }}
-          placeholder="Кінотеатр Жовтень, Поділ"
+          placeholder={placeholder}
           className={INPUT_CLASS}
           style={{ fontSize: 14 }}
         />

@@ -12,19 +12,16 @@
 
 import type { ApiErrorBody } from "./types";
 
-// Per-environment defaults so a production build that wasn't given an explicit
-// `NEXT_PUBLIC_API_BASE_URL` still hits the deployed Cloud Run backend instead
-// of accidentally pointing at localhost. Dev keeps the local fasthttp port.
-const DEV_DEFAULT_BASE_URL = "http://localhost:8088";
-const PROD_DEFAULT_BASE_URL =
+// Default when `NEXT_PUBLIC_API_BASE_URL` is unset: deployed Cloud Run API.
+// For a local Go server, set `NEXT_PUBLIC_API_BASE_URL=http://localhost:8088`
+// in `.env.local`.
+const DEFAULT_API_BASE_URL =
   "https://veteran-platform-backend-136148031564.europe-west3.run.app";
 
 export function apiBaseUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (explicit) return explicit;
-  return process.env.NODE_ENV === "production"
-    ? PROD_DEFAULT_BASE_URL
-    : DEV_DEFAULT_BASE_URL;
+  return DEFAULT_API_BASE_URL;
 }
 
 export class ApiError extends Error {
