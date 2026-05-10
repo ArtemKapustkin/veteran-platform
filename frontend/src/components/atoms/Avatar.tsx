@@ -38,13 +38,30 @@ export function Avatar({
         alignItems: "center",
         justifyContent: "center",
         fontSize: size * 0.42,
+        lineHeight: 1,
+        letterSpacing: 0,
         fontWeight: 600,
         boxShadow: `0 0 0 2px ${ring}`,
         flex: "0 0 auto",
+        overflow: "hidden",
         ...style,
       }}
     >
-      {initial}
+      <span
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "100%",
+          height: "100%",
+          lineHeight: 1,
+          fontSize: "inherit",
+          fontWeight: "inherit",
+          letterSpacing: "inherit",
+        }}
+      >
+        {initial}
+      </span>
     </div>
   );
 }

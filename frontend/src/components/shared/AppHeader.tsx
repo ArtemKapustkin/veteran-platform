@@ -63,7 +63,11 @@ export function AppHeader() {
         <Link
           href="/account"
           aria-label={firstName ? `Мій акаунт — ${firstName}` : "Мій акаунт"}
-          className="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 active:brightness-95"
+          className={
+            firstName
+              ? "flex items-center gap-2 rounded-full py-1 pl-1 pr-3 active:brightness-95"
+              : "flex items-center rounded-full px-1 py-1 active:brightness-95"
+          }
           style={{ background: "#F8F6F1" }}
         >
           <Avatar initial={initials} tone="sand" size={28} ring="#F8F6F1" />

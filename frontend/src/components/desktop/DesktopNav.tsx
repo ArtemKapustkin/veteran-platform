@@ -165,7 +165,11 @@ export function DesktopNav() {
           href="/account"
           aria-label={firstName ? `Мій акаунт — ${firstName}` : "Мій акаунт"}
           aria-current={accountActive ? "page" : undefined}
-          className="flex items-center gap-2 rounded-full pl-1.5 pr-3.5 py-1 hover:brightness-95"
+          className={
+            firstName
+              ? "flex items-center gap-2 rounded-full py-1 pl-1.5 pr-3.5 hover:brightness-95"
+              : "flex items-center rounded-full px-1.5 py-1 hover:brightness-95"
+          }
           style={{ background: "#F8F6F1" }}
         >
           <Avatar initial={initials} tone="sand" size={30} ring="#F8F6F1" />
