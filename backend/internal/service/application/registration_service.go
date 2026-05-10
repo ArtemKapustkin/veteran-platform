@@ -172,6 +172,18 @@ func generateInviteToken() (string, error) {
 	return strings.TrimRight(base64.URLEncoding.EncodeToString(buf), "="), nil
 }
 
+// Cancel handles two distinct intents on the same endpoint:
+//
+//   - Organizer cancels: tear down the whole group, release every
+//     reserved seat back to the quota.
+//   - Confirmed companion cancels: leave the group only — flip their
+//     companion row to declined, decrement the registration's seat
+//     count, and release a single seat. The organizer (and any other
+//     confirmed companions) keep their spots.
+//
+// Treating "leave" as a Cancel keeps the frontend's heart toggle
+// symmetric across organizers and recipients without a second
+// endpoint.
 func (s *RegistrationService) Cancel(ctx context.Context, eventID, registrationID, callerID uuid.UUID) error {
 	now := time.Now()
 	reg, err := s.regs.FindByID(ctx, registrationID)
@@ -181,13 +193,56 @@ func (s *RegistrationService) Cancel(ctx context.Context, eventID, registrationI
 	if reg == nil || reg.EventID != eventID {
 		return apperrors.NewNotFoundError("registration not found")
 	}
-	if reg.VeteranID != callerID {
-		return apperrors.NewForbiddenError("not your registration")
-	}
 	if reg.Status == "cancelled" || reg.Status == "expired" {
 		return nil
 	}
-	return s.releaseAndCancel(ctx, reg, "cancelled", now)
+	if reg.VeteranID == callerID {
+		return s.releaseAndCancel(ctx, reg, "cancelled", now)
+	}
+	return s.leaveGroup(ctx, reg, callerID, now)
+}
+
+// leaveGroup demotes the caller's confirmed companion row to declined
+// and frees a single seat back to the public quota. Returns 403 when
+// the caller never claimed a slot here, matching the previous
+// "not your registration" semantics so the frontend toast keeps
+// working.
+func (s *RegistrationService) leaveGroup(ctx context.Context, reg *model.Registration, callerID uuid.UUID, now time.Time) error {
+	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		res, err := tx.NewUpdate().
+			Model((*model.RegistrationCompanion)(nil)).
+			Set("status = ?", "declined").
+			Set("responded_at = ?", now).
+			Where("registration_id = ? AND veteran_id = ? AND status = 'confirmed'", reg.ID, callerID).
+			Exec(ctx)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return apperrors.NewForbiddenError("not your registration")
+		}
+		// Drop the freed seat from the registration's promised group
+		// size and the denormalized `events.seats_taken` counter so
+		// the slot reappears in the public quota.
+		if _, err := tx.NewUpdate().
+			Model((*model.Registration)(nil)).
+			Set("seats = GREATEST(seats - 1, 1)").
+			Set("updated_at = ?", now).
+			Where("id = ?", reg.ID).
+			Exec(ctx); err != nil {
+			return err
+		}
+		if _, err := tx.NewUpdate().
+			Model((*model.Event)(nil)).
+			Set("seats_taken = GREATEST(seats_taken - 1, 0)").
+			Set("updated_at = ?", now).
+			Where("id = ?", reg.EventID).
+			Exec(ctx); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (s *RegistrationService) releaseAndCancel(ctx context.Context, reg *model.Registration, finalStatus string, now time.Time) error {

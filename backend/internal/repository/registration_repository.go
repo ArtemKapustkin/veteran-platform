@@ -47,12 +47,24 @@ func (r *RegistrationRepository) FindByIDWithCompanions(ctx context.Context, id 
 	return &reg, nil
 }
 
+// FindActiveByEventAndVeteran returns the active registration the
+// veteran is involved in for the given event — either as the
+// organizer (`registration.veteran_id`) or as a confirmed companion.
+// Used both as a duplicate-registration guard during create/claim and
+// as the source of truth for `/me/registrations` sync, so a recipient
+// who claimed a slot via a Telegram-share link sees their RSVP state
+// reflected on every screen after a page reload.
 func (r *RegistrationRepository) FindActiveByEventAndVeteran(ctx context.Context, eventID, veteranID uuid.UUID) (*model.Registration, error) {
 	var reg model.Registration
 	err := r.db.NewSelect().
 		Model(&reg).
 		Relation("Companions").
-		Where("registration.event_id = ? AND registration.veteran_id = ? AND registration.status IN ('pending_companions', 'confirmed')", eventID, veteranID).
+		Where("registration.event_id = ?", eventID).
+		Where("registration.status IN ('pending_companions', 'confirmed')").
+		Where(
+			"(registration.veteran_id = ? OR EXISTS (SELECT 1 FROM vp.registration_companions rc WHERE rc.registration_id = registration.id AND rc.veteran_id = ? AND rc.status = 'confirmed'))",
+			veteranID, veteranID,
+		).
 		Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -79,12 +91,20 @@ func (r *RegistrationRepository) FindCompanionByInviteToken(ctx context.Context,
 	return &c, nil
 }
 
+// ListMine returns every registration the veteran participates in —
+// either as the organizer or as a confirmed companion who claimed a
+// slot via a share link. Surfacing the latter is what keeps the
+// recipient's "Ти йдеш" state correct after a page reload (the
+// frontend hydrates `rsvpIds` from this list).
 func (r *RegistrationRepository) ListMine(ctx context.Context, veteranID uuid.UUID, status *string, limit int) ([]model.Registration, error) {
 	var rows []model.Registration
 	q := r.db.NewSelect().
 		Model(&rows).
 		Relation("Companions").
-		Where("registration.veteran_id = ?", veteranID).
+		Where(
+			"(registration.veteran_id = ? OR EXISTS (SELECT 1 FROM vp.registration_companions rc WHERE rc.registration_id = registration.id AND rc.veteran_id = ? AND rc.status = 'confirmed'))",
+			veteranID, veteranID,
+		).
 		Order("registration.created_at DESC")
 	if status != nil {
 		q = q.Where("registration.status = ?", *status)
