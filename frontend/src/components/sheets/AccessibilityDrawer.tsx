@@ -100,7 +100,7 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="a11y-title"
-      className="absolute inset-0 z-50 overflow-hidden"
+      className="fixed inset-0 z-50 overflow-hidden"
     >
       <button
         type="button"
@@ -110,10 +110,10 @@ export function AccessibilityDrawer({ onClose }: { onClose: () => void }) {
       />
 
       <div
-        className="bg-surface absolute inset-y-0 right-0 flex flex-col rounded-l-[18px]"
+        className="bg-surface absolute inset-y-0 right-0 flex w-[88%] max-w-[92vw] flex-col rounded-l-[18px] lg:w-[400px]"
         style={{
-          width: "88%",
           boxShadow: "-12px 0 32px rgba(0,0,0,0.12)",
+          animation: "var(--animate-slide-in-right)",
         }}
       >
         <div className="flex items-center justify-between px-4.5 pt-3.5 pb-1">

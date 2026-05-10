@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ViewportSwitch } from "@/components/ViewportSwitch";
 import { AddEventDesktop } from "@/components/add-event/AddEventDesktop";
@@ -14,6 +13,7 @@ import {
 } from "@/components/add-event/draft";
 import { ApiError } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { useLoginPromptStore } from "@/lib/useLoginPrompt";
 
 /**
  * Top-level orchestrator for the organizer flow.
@@ -26,7 +26,6 @@ import { useAuthStore } from "@/lib/store";
  *   success screen can deep-link the organizer to the moderation queue.
  */
 export function AddEventEntry() {
-  const router = useRouter();
   const isAuthed = useAuthStore((s) => s.loggedIn);
   const [draft, setDraft] = useState<EventDraft>(() => makeDraft());
   const [step, setStep] = useState<FormStep["id"]>(1);
@@ -35,8 +34,9 @@ export function AddEventEntry() {
 
   const onSubmit = async () => {
     if (!isAuthed) {
-      // Veteran-only endpoint; bounce to login and come back.
-      router.push("/login?next=/add-event");
+      // Veteran-only endpoint — surface the global login modal so the
+      // user can authenticate without leaving this draft.
+      useLoginPromptStore.getState().open("Щоб опублікувати подію");
       return;
     }
     setSubmitting(true);
@@ -45,7 +45,7 @@ export function AddEventEntry() {
       setSubmittedDraft(snapshot(draft));
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        router.push("/login?next=/add-event");
+        useLoginPromptStore.getState().open("Щоб опублікувати подію");
         return;
       }
       const detail =

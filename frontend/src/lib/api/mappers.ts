@@ -204,6 +204,7 @@ export function apiEventToAppEvent(ev: ApiEvent): AppEvent {
     attendeeNames,
     description: ev.description ?? "",
     location: buildLocation(ev),
+    repeat: ev.repeat,
     beFirst: seats === 0,
   };
 }

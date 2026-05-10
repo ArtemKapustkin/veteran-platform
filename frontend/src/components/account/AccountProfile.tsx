@@ -7,6 +7,7 @@ import { Avatar } from "@/components/atoms/Avatar";
 import { Pill } from "@/components/atoms/Pill";
 import { StatBlock } from "@/components/atoms/StatBlock";
 import { EventCardV2 } from "@/components/shared/EventCardV2";
+import { InvitationCard } from "@/components/shared/InvitationCard";
 import { AccessIcon } from "@/components/icons";
 import { useEvents } from "@/lib/useEvents";
 import {
@@ -14,6 +15,7 @@ import {
   useAuthStore,
   useEventsStore,
 } from "@/lib/store";
+import { useInvitationsStore } from "@/lib/useInvitations";
 import { useMounted } from "@/lib/useMounted";
 
 /**
@@ -29,8 +31,13 @@ export function AccountProfile() {
 
   const rsvpIds = useEventsStore((s) => s.rsvpIds);
   const savedIds = useEventsStore((s) => s.savedIds);
+  const invitations = useInvitationsStore((s) => s.items);
 
   const { events } = useEvents();
+
+  const pendingInvitations = mounted
+    ? invitations.filter((i) => i.status === "pending")
+    : [];
 
   const upcoming = mounted
     ? events.filter((e) => rsvpIds.includes(e.id))
@@ -113,12 +120,26 @@ export function AccountProfile() {
           <StatBlock value={upcoming.length} label="Записаний на" />
           <StatBlock value={past.length} label="Уже відвідав" />
           <StatBlock value={saved.length} label="Збережено" />
+          {pendingInvitations.length > 0 ? (
+            <StatBlock value={pendingInvitations.length} label="Запрошень" />
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-10">
+          {pendingInvitations.length > 0 ? (
+            <Section
+              title="Запрошення"
+              hint="Тебе кличуть у груповий запис — підтверди або відхили"
+            >
+              {pendingInvitations.map((inv) => (
+                <InvitationCard key={inv.id} invitation={inv} />
+              ))}
+            </Section>
+          ) : null}
+
           <Section
             title="Записаний на події"
-            hint="Підтвердив участь — побратими бачать це на карті"
+            hint="Підтверджена участь"
           >
             {upcoming.length > 0 ? (
               upcoming.map((e) => <EventCardV2 key={e.id} event={e} />)

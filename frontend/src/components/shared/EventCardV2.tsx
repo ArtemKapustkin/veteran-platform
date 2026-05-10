@@ -9,6 +9,7 @@ import { HeartFillIcon, HeartIcon, PinIcon } from "@/components/icons";
 import { CATEGORIES } from "@/data/categories";
 import type { AppEvent } from "@/data/events";
 import { useEventsStore } from "@/lib/store";
+import { useAuthGuard } from "@/lib/useAuthGuard";
 import { useMounted } from "@/lib/useMounted";
 
 const BADGE_COLORS: Record<string, PillColor> = {
@@ -72,6 +73,7 @@ export function EventCardV2({
   const toggleSaved = useEventsStore((s) => s.toggleSaved);
   const isSavedReal = useEventsStore((s) => s.savedIds.includes(event.id));
   const isSaved = mounted && isSavedReal;
+  const requireAuth = useAuthGuard();
 
   const handleLinkClick = (e: React.MouseEvent) => {
     if (!onSelect) return;
@@ -82,6 +84,7 @@ export function EventCardV2({
   const handleSave = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!requireAuth({ hint: "Щоб зберегти подію" })) return;
     toggleSaved(event.id);
   };
 

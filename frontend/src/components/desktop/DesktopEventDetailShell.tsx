@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Marker } from "react-map-gl/maplibre";
 import { Avatar } from "@/components/atoms/Avatar";
 import { Btn } from "@/components/atoms/Btn";
@@ -8,6 +9,7 @@ import { Photo } from "@/components/atoms/Photo";
 import { CounterBlock } from "@/components/shared/CounterBlock";
 import { EventBadges } from "@/components/shared/EventBadges";
 import { SeatBar } from "@/components/shared/SeatBar";
+import { CancelRsvpAction } from "@/components/shared/CancelRsvpAction";
 import { MapCanvas } from "@/components/map/MapCanvas";
 import { EventPin } from "@/components/map/EventPin";
 import { Overlays } from "@/components/sheets/Overlays";
@@ -19,14 +21,16 @@ import {
   HeartFillIcon,
   HeartIcon,
   PinIcon,
-  ShareIcon,
-  TgIcon,
+  UserIcon,
 } from "@/components/icons";
+import { GroupRegisterSheet } from "@/components/sheets/GroupRegisterSheet";
+import { InvitationBanner } from "@/components/shared/InvitationBanner";
 import { CATEGORIES } from "@/data/categories";
 import type { AppEvent } from "@/data/events";
-import { telegramShareUrl } from "@/lib/share";
 import { useEventsStore } from "@/lib/store";
+import { useAuthGuard } from "@/lib/useAuthGuard";
 import { useMounted } from "@/lib/useMounted";
+import { toast } from "@/lib/useToast";
 
 /**
  * Desktop full event detail. LUN-style: top nav + a 2-column article
@@ -41,18 +45,44 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
   const isSavedReal = useEventsStore((s) => s.savedIds.includes(event.id));
   const isRsvp = mounted && isRsvpReal;
   const isSaved = mounted && isSavedReal;
+  const [rsvpPending, setRsvpPending] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const requireAuth = useAuthGuard();
+
+  const openGroup = () => {
+    if (!requireAuth({ hint: "Щоб запросити побратима" })) return;
+    setGroupOpen(true);
+  };
 
   const meta = CATEGORIES[event.category];
 
-  const handleShare = () => {
-    window.open(telegramShareUrl(event), "_blank", "noopener,noreferrer");
-  };
-
   const handleRsvp = async (on: boolean) => {
+    if (rsvpPending) return;
+    if (!requireAuth({ hint: on ? "Щоб записатись на подію" : undefined })) return;
+    setRsvpPending(true);
     try {
       await setRsvp(event.id, on);
+      try {
+        navigator.vibrate?.(on ? 18 : 8);
+      } catch {
+        /* no-op */
+      }
+      if (on) {
+        const others = Math.max(0, event.count);
+        toast.success(
+          "Записали тебе!",
+          others > 0 ? `Разом із ${others} своїми.` : undefined,
+        );
+      } else {
+        toast.info("Запис скасовано");
+      }
     } catch (e) {
-      window.alert(`Не вдалось оформити запис: ${(e as Error).message}`);
+      toast.error(
+        on ? "Не вдалось записатися" : "Не вдалось скасувати запис",
+        (e as Error).message,
+      );
+    } finally {
+      setRsvpPending(false);
     }
   };
 
@@ -91,7 +121,10 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
               <div className="absolute right-3.5 top-3.5 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => toggleSaved(event.id)}
+                  onClick={() => {
+                    if (!requireAuth({ hint: "Щоб зберегти подію" })) return;
+                    toggleSaved(event.id);
+                  }}
                   aria-label={
                     isSaved ? "Видалити зі збережених" : "Зберегти подію"
                   }
@@ -107,15 +140,6 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
                   ) : (
                     <HeartIcon size={20} />
                   )}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  aria-label="Поділитись"
-                  className="shadow-soft flex h-10 w-10 items-center justify-center rounded-xl backdrop-blur-md"
-                  style={{ background: "rgba(255,255,255,0.92)" }}
-                >
-                  <ShareIcon size={18} />
                 </button>
               </div>
             </div>
@@ -285,37 +309,50 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
 
               <div className="border-border-soft -mx-5 mt-1 border-t" />
 
+              <InvitationBanner eventId={event.id} variant="compact" />
+
               {isRsvp ? (
-                <div className="flex flex-col gap-2.5">
+                <div className="flex flex-col gap-3">
                   <div
-                    className="flex items-center gap-1.5"
+                    className="flex items-start gap-3 rounded-xl px-3.5 py-3"
                     style={{
-                      color: "#0E6E45",
-                      fontSize: 14,
-                      fontWeight: 600,
+                      background: "#E8F6EF",
+                      border: "1px solid #BFE7CF",
+                      animation: "var(--animate-pop-down)",
                     }}
                   >
-                    <CheckIcon size={16} stroke="#0E6E45" />
-                    Ти йдеш — побратими побачать
+                    <span
+                      aria-hidden
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+                      style={{ background: "#0E6E45", color: "#fff" }}
+                    >
+                      <CheckIcon size={16} stroke="#fff" />
+                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span
+                        style={{
+                          color: "#0E6E45",
+                          fontSize: 14.5,
+                          fontWeight: 600,
+                          letterSpacing: "-0.01em",
+                        }}
+                      >
+                        Ти йдеш
+                      </span>
+                      {event.count > 0 ? (
+                        <span
+                          className="text-text2"
+                          style={{ fontSize: 12.5 }}
+                        >
+                          Разом із {event.count} своїми.
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <Btn
-                    kind="invite"
-                    size="lg"
-                    fullWidth
-                    icon={<TgIcon size={18} />}
-                    onClick={handleShare}
-                  >
-                    Покликати побратима
-                  </Btn>
-                  <Btn
-                    kind="ghost"
-                    size="md"
-                    fullWidth
-                    onClick={() => handleRsvp(false)}
-                    className="text-text2"
-                  >
-                    Скасувати участь
-                  </Btn>
+                  <CancelRsvpAction
+                    onConfirm={() => handleRsvp(false)}
+                    align="center"
+                  />
                 </div>
               ) : (
                 <div className="flex flex-col gap-2.5">
@@ -323,25 +360,20 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
                     kind="primary"
                     size="lg"
                     fullWidth
+                    loading={rsvpPending}
                     onClick={() => handleRsvp(true)}
                   >
                     Я йду
                   </Btn>
                   <Btn
-                    kind="invite"
+                    kind="secondary"
                     size="lg"
                     fullWidth
-                    icon={<TgIcon size={18} />}
-                    onClick={handleShare}
+                    icon={<UserIcon size={18} />}
+                    onClick={openGroup}
                   >
-                    Покликати побратима
+                    Записатись з побратимом
                   </Btn>
-                  <div
-                    className="text-text2 text-center"
-                    style={{ fontSize: 11.5, letterSpacing: "-0.005em" }}
-                  >
-                    через Telegram · одним тапом
-                  </div>
                 </div>
               )}
             </div>
@@ -350,6 +382,10 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
       </main>
 
       <Overlays desktop />
+
+      {groupOpen ? (
+        <GroupRegisterSheet event={event} onClose={() => setGroupOpen(false)} />
+      ) : null}
     </div>
   );
 }

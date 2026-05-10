@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { Btn } from "@/components/atoms/Btn";
-import { ArrowIcon, TgIcon } from "@/components/icons";
+import { ArrowIcon, PhoneIcon } from "@/components/icons";
+import { Overlays } from "@/components/sheets/Overlays";
 import { useAuthStore } from "@/lib/store";
+import { useLoginPromptStore } from "@/lib/useLoginPrompt";
 import { useMounted } from "@/lib/useMounted";
 import { DesktopNav } from "./DesktopNav";
 
 export function LandingDesktop() {
   const mounted = useMounted();
   const loggedIn = useAuthStore((s) => s.loggedIn);
-  // SSR/first paint defaults to guest so the Telegram CTA renders consistently
+  // SSR/first paint defaults to guest so the login CTA renders consistently
   // before the auth store rehydrates.
   const isLoggedIn = mounted && loggedIn;
 
@@ -57,16 +59,14 @@ export function LandingDesktop() {
               </Btn>
             </Link>
             {!isLoggedIn ? (
-              <Link href="/login" aria-label="Увійти через Telegram">
-                <Btn
-                  kind="secondary"
-                  size="lg"
-                  icon={<TgIcon size={16} />}
-                  asLink
-                >
-                  Увійти через Telegram
-                </Btn>
-              </Link>
+              <Btn
+                kind="secondary"
+                size="lg"
+                icon={<PhoneIcon size={16} />}
+                onClick={() => useLoginPromptStore.getState().open()}
+              >
+                Увійти через SMS
+              </Btn>
             ) : null}
           </div>
           <div
@@ -87,6 +87,7 @@ export function LandingDesktop() {
           </div>
         </div>
       </main>
+      <Overlays desktop />
     </div>
   );
 }

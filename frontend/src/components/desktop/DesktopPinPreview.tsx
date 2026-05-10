@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
 import { CounterBlock } from "@/components/shared/CounterBlock";
 import { SeatBar } from "@/components/shared/SeatBar";
-import { CheckIcon, CloseIcon, TgIcon } from "@/components/icons";
+import { CheckIcon, CloseIcon } from "@/components/icons";
 import type { AppEvent } from "@/data/events";
-import { telegramShareUrl } from "@/lib/share";
 import { useEventsStore } from "@/lib/store";
+import { useAuthGuard } from "@/lib/useAuthGuard";
 import { useMounted } from "@/lib/useMounted";
+import { toast } from "@/lib/useToast";
 
 export function DesktopPinPreview({ event }: { event: AppEvent }) {
   const router = useRouter();
@@ -18,6 +20,8 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
   const setRsvp = useEventsStore((s) => s.setRsvp);
   const isRsvpReal = useEventsStore((s) => s.rsvpIds.includes(event.id));
   const isRsvp = mounted && isRsvpReal;
+  const [rsvpPending, setRsvpPending] = useState(false);
+  const requireAuth = useAuthGuard();
 
   const onClose = () => {
     const next = new URLSearchParams(params.toString());
@@ -29,19 +33,21 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
     );
   };
 
-  const onShare = () => {
-    window.open(
-      telegramShareUrl(event),
-      "_blank",
-      "noopener,noreferrer",
-    );
-  };
-
   const onRsvp = async () => {
+    if (rsvpPending) return;
+    if (!requireAuth({ hint: "Щоб записатись на подію" })) return;
+    setRsvpPending(true);
     try {
       await setRsvp(event.id, true);
+      const others = Math.max(0, event.count);
+      toast.success(
+        "Записали тебе!",
+        others > 0 ? `Разом із ${others} своїми.` : undefined,
+      );
     } catch (e) {
-      window.alert(`Не вдалось оформити запис: ${(e as Error).message}`);
+      toast.error("Не вдалось записатися", (e as Error).message);
+    } finally {
+      setRsvpPending(false);
     }
   };
 
@@ -99,35 +105,20 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
         <SeatBar taken={event.count} capacity={event.capacity} compact />
       ) : null}
 
-      <div>
-        <Btn
-          kind="invite"
-          size="lg"
-          fullWidth
-          icon={<TgIcon size={18} />}
-          onClick={onShare}
-        >
-          Покликати побратима
-        </Btn>
-        <div
-          className="text-text2 mt-1.5 text-center"
-          style={{ fontSize: 11, letterSpacing: "-0.005em" }}
-        >
-          через Telegram · одним тапом
-        </div>
-      </div>
-
       {isRsvp ? (
         <div
-          className="flex items-center justify-center gap-1.5 py-1"
+          className="flex items-center justify-center gap-2 rounded-xl py-2"
           style={{
+            background: "#E8F6EF",
+            border: "1px solid #BFE7CF",
             color: "#0E6E45",
             fontSize: 13,
             fontWeight: 600,
+            animation: "var(--animate-pop-down)",
           }}
         >
           <CheckIcon size={15} stroke="#0E6E45" />
-          Ти йдеш — побратими побачать
+          Ти йдеш
         </div>
       ) : (
         <div className="flex gap-2">
@@ -135,6 +126,7 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
             kind="secondary"
             size="md"
             fullWidth
+            loading={rsvpPending}
             onClick={onRsvp}
           >
             Я йду

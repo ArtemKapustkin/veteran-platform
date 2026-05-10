@@ -40,6 +40,7 @@
   --animate-pulse-ring: pulse-ring 2s ease-out 1;
   --animate-mic-pulse: mic-pulse 1.4s ease-out infinite;
   --animate-slide-in-right: slide-in-right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-pop-down: pop-down 0.16s cubic-bezier(0.4, 0, 0.2, 1);
 
   @keyframes pulse-ring {
     0%   { transform: scale(0.85); opacity: 0.9; }
@@ -53,6 +54,18 @@
   @keyframes slide-in-right {
     from { transform: translateX(100%); }
     to   { transform: translateX(0); }
+  }
+  @keyframes pop-down {
+    from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+  @keyframes spin {
+    from { transform: rotate(0); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
   }
 }
 

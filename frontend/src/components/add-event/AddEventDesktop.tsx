@@ -5,6 +5,7 @@ import { Btn } from "@/components/atoms/Btn";
 import { Pill } from "@/components/atoms/Pill";
 import { ArrowIcon, BackIcon } from "@/components/icons";
 import { DesktopNav } from "@/components/desktop/DesktopNav";
+import { Overlays } from "@/components/sheets/Overlays";
 import { Stepper } from "./Stepper";
 import { SteppedForm } from "./Steps";
 import { EventPagePreview } from "./EventPagePreview";
@@ -138,6 +139,7 @@ export function AddEventDesktop({
           </div>
         </section>
       </div>
+      <Overlays desktop />
     </div>
   );
 }

@@ -5,19 +5,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { MapRef } from "react-map-gl/maplibre";
 import { DesktopNav } from "./DesktopNav";
 import { DesktopFilterBar } from "./DesktopFilterBar";
-import { DesktopHeader } from "./DesktopHeader";
 import { DesktopPinPreview } from "./DesktopPinPreview";
 import { EventCardV2 } from "@/components/shared/EventCardV2";
 import { MapCanvas } from "@/components/map/MapCanvas";
 import { PinLayer } from "@/components/map/PinLayer";
 import { Overlays } from "@/components/sheets/Overlays";
 import { CATEGORIES } from "@/data/categories";
-import { KYIV_CENTER } from "@/data/events";
-import { useEvents } from "@/lib/useEvents";
+import { useFilteredEvents } from "@/lib/useFilteredEvents";
+import { resolveCity, useCityStore } from "@/lib/useCity";
+import { useMounted } from "@/lib/useMounted";
 
 /** Zoom + animation tuning for the card → pin "fly to" effect. */
 const FOCUS_ZOOM = 14;
 const FOCUS_FLY_SPEED = 1.4;
+/** Map zoom used whenever the camera is showing the whole city. */
+const CITY_ZOOM = 11.4;
 
 /**
  * LUN-style split view for desktop.
@@ -36,7 +38,13 @@ export function DesktopMapShell({
   const router = useRouter();
   const params = useSearchParams();
   const focusedId = params.get("event");
-  const { events } = useEvents();
+  const mounted = useMounted();
+  const cityName = useCityStore((s) => s.name);
+  // Defer reading the persisted city until after hydration — otherwise SSR
+  // and first-paint markup would diverge from the client store value.
+  const activeCityName = mounted ? cityName : "Київ";
+  const activeCity = resolveCity(activeCityName);
+  const { events } = useFilteredEvents();
   const focused = focusedId
     ? events.find((e) => e.id === focusedId)
     : undefined;
@@ -67,6 +75,20 @@ export function DesktopMapShell({
     });
   }, [focused]);
 
+  // Re-center the map when the user picks a different city. Jump rather
+  // than fly — animating across hundreds of kilometers feels disorienting
+  // and stalls the user. Skipped while a pin is focused so we don't yank
+  // the camera off the user's current selection.
+  useEffect(() => {
+    if (focused) return;
+    const map = mapRef.current;
+    if (!map) return;
+    map.jumpTo({
+      center: [activeCity.center.lng, activeCity.center.lat],
+      zoom: CITY_ZOOM,
+    });
+  }, [activeCity, focused]);
+
   return (
     <div className="bg-bg flex flex-col" style={{ height: "100vh" }}>
       <DesktopNav />
@@ -80,9 +102,8 @@ export function DesktopMapShell({
           }}
         >
           <DesktopFilterBar />
-          <DesktopHeader />
           <div
-            className="grid flex-1 content-start gap-4 overflow-auto px-7 pt-3 pb-7"
+            className="grid flex-1 content-start gap-4 overflow-auto px-7 pt-4 pb-7"
             style={{
               gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
               gridAutoRows: "min-content",
@@ -107,9 +128,9 @@ export function DesktopMapShell({
           >
             <MapCanvas
               ref={mapRef}
-              longitude={focused?.location.lng ?? KYIV_CENTER.lng}
-              latitude={focused?.location.lat ?? KYIV_CENTER.lat}
-              zoom={focused ? FOCUS_ZOOM : 11.4}
+              longitude={focused?.location.lng ?? activeCity.center.lng}
+              latitude={focused?.location.lat ?? activeCity.center.lat}
+              zoom={focused ? FOCUS_ZOOM : CITY_ZOOM}
             >
               <PinLayer events={events} focusedId={focusedId} />
             </MapCanvas>

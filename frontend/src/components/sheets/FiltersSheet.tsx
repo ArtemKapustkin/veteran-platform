@@ -1,169 +1,113 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Btn } from "@/components/atoms/Btn";
 import { CalIcon, CheckIcon, CloseIcon } from "@/components/icons";
 import { useEvents } from "@/lib/useEvents";
+import { useCityStore } from "@/lib/useCity";
+import { useMounted } from "@/lib/useMounted";
+import {
+  applyClientFilters,
+  countActiveFilters,
+  EMPTY_FILTERS,
+  snapshotFilters,
+  uiFiltersToApi,
+  useFiltersStore,
+  type DatePreset,
+  type UiFilters,
+} from "@/lib/useFilters";
+import type {
+  AccessibilityTag,
+  ApiEventCategory,
+  CostTier,
+  ForWhom,
+  KyivDistrict,
+  ParticipantsBucket,
+  EventRepeat,
+} from "@/lib/api";
 
-// ─── Filter schema ────────────────────────────────────────────
+// ─── Option catalogues ────────────────────────────────────────
 //
-// Each section is either `multi: true` (chips toggle independently into a
-// Set) or `multi: false` (chips behave like a radio group, value can be
-// nullable). The Дата section additionally exposes a `Вибрати дату` chip
-// that prompts for a custom range.
+// Each chip group declares its UI label + the API enum it maps onto.
+// Keeping the mapping co-located with the labels means we never have to
+// hunt across files when the backend grows a new option (or renames one).
 
-type SingleKey = "date" | "size" | "audience" | "recurrence";
-type MultiKey = "category" | "region" | "price" | "comfort";
+interface OptionRow<V extends string> {
+  label: string;
+  value: V;
+}
 
-type FilterSection =
-  | {
-      key: MultiKey;
-      title: string;
-      multi: true;
-      options: readonly string[];
-    }
-  | {
-      key: SingleKey;
-      title: string;
-      multi: false;
-      options: readonly string[];
-      extra?: { label: string };
-    };
-
-const SECTIONS: readonly FilterSection[] = [
-  {
-    key: "category",
-    title: "Категорія події",
-    multi: true,
-    options: [
-      "Спорт",
-      "Йога і медитація",
-      "Культура",
-      "Навчання",
-      "Природа і тури",
-      "Психологічна підтримка",
-      "Зустрічі і спілкування",
-      "Реабілітація",
-      "СПА і відновлення",
-    ],
-  },
-  {
-    key: "date",
-    title: "Дата",
-    multi: false,
-    options: ["Сьогодні", "Завтра", "Цей тиждень", "Цей місяць"],
-    extra: { label: "Вибрати дату" },
-  },
-  {
-    key: "region",
-    title: "Район Києва",
-    multi: true,
-    options: [
-      "Голосіївський",
-      "Оболонський",
-      "Печерський",
-      "Подільський",
-      "Святошинський",
-      "Соломʼянський",
-      "Шевченківський",
-      "Дарницький",
-      "Деснянський",
-      "Дніпровський",
-    ],
-  },
-  {
-    key: "size",
-    title: "Кількість учасників",
-    multi: false,
-    options: ["До 10", "10–30", "30+"],
-  },
-  {
-    key: "audience",
-    title: "Для кого",
-    multi: false,
-    options: [
-      "Захисники і їх сімʼї",
-      "Лише захисники",
-      "Тільки захисниці (жінки)",
-      "Тільки захисники (чоловіки)",
-    ],
-  },
-  {
-    key: "recurrence",
-    title: "Регулярність",
-    multi: false,
-    options: ["Одноразова", "Регулярна"],
-  },
-  {
-    key: "price",
-    title: "Вартість",
-    multi: true,
-    options: [
-      "Безкоштовно для всіх",
-      "Безкоштовно для ветеранів та родин",
-      "Безкоштовно для УБД",
-      "Через держпрограму",
-      "Знижка для ветеранів",
-      "Платно",
-    ],
-  },
-  {
-    key: "comfort",
-    title: "Безпека і комфорт",
-    multi: true,
-    options: [
-      "Поруч укриття",
-      "Без зйомки та публікацій",
-      "Адаптивний простір",
-      "18+",
-    ],
-  },
+const CATEGORY_OPTIONS: ReadonlyArray<OptionRow<ApiEventCategory>> = [
+  { label: "Спорт",                  value: "sport" },
+  { label: "Йога і медитація",       value: "yoga" },
+  { label: "Культура",               value: "culture" },
+  { label: "Навчання",               value: "education" },
+  { label: "Природа і тури",         value: "nature" },
+  { label: "Психологічна підтримка", value: "psychology" },
+  { label: "Зустрічі і спілкування", value: "social" },
+  { label: "Реабілітація",           value: "rehabilitation" },
+  { label: "СПА і відновлення",      value: "spa" },
 ];
 
-interface FiltersState {
-  category: Set<string>;
-  date: string | null;
-  region: Set<string>;
-  size: string | null;
-  audience: string | null;
-  recurrence: string | null;
-  price: Set<string>;
-  comfort: Set<string>;
-  customDate: string | null;
-}
+const DATE_OPTIONS: ReadonlyArray<OptionRow<DatePreset>> = [
+  { label: "Сьогодні",     value: "today" },
+  { label: "Завтра",       value: "tomorrow" },
+  { label: "Цей тиждень",  value: "this_week" },
+  { label: "Цей місяць",   value: "this_month" },
+];
 
-const INITIAL_STATE: FiltersState = {
-  category: new Set(["Спорт"]),
-  date: "Цей тиждень",
-  region: new Set(),
-  size: null,
-  audience: "Захисники і їх сімʼї",
-  recurrence: null,
-  price: new Set(["Безкоштовно для всіх"]),
-  comfort: new Set(["Без зйомки та публікацій"]),
-  customDate: null,
-};
+const DISTRICT_OPTIONS: ReadonlyArray<OptionRow<KyivDistrict>> = [
+  { label: "Голосіївський",  value: "holosiivskyi" },
+  { label: "Оболонський",    value: "obolonskyi" },
+  { label: "Печерський",     value: "pecherskyi" },
+  { label: "Подільський",    value: "podilskyi" },
+  { label: "Святошинський",  value: "sviatoshynskyi" },
+  { label: "Соломʼянський",  value: "solomianskyi" },
+  { label: "Шевченківський", value: "shevchenkivskyi" },
+  { label: "Дарницький",     value: "darnytskyi" },
+  { label: "Деснянський",    value: "desnianskyi" },
+  { label: "Дніпровський",   value: "dniprovskyi" },
+];
 
-const EMPTY_STATE: FiltersState = {
-  category: new Set(),
-  date: null,
-  region: new Set(),
-  size: null,
-  audience: null,
-  recurrence: null,
-  price: new Set(),
-  comfort: new Set(),
-  customDate: null,
-};
+const SIZE_OPTIONS: ReadonlyArray<OptionRow<ParticipantsBucket>> = [
+  { label: "До 10",  value: "up_to_10" },
+  { label: "10–30",  value: "10_to_30" },
+  { label: "30+",    value: "30_plus" },
+];
 
-// Match-count copy (1 / 2-4 / 5+). The actual count is sourced from the
-// live events list once the API responds; we only use this as a tiny
-// pluralisation helper.
-function matchPlural(n: number): string {
-  if (n === 1) return "подію";
-  if (n < 5) return "події";
-  return "подій";
-}
+const AUDIENCE_OPTIONS: ReadonlyArray<OptionRow<ForWhom>> = [
+  { label: "Захисники і їх сімʼї",       value: "veterans_and_families" },
+  { label: "Лише захисники",             value: "veterans" },
+  { label: "Тільки захисниці (жінки)",   value: "female_veterans" },
+  { label: "Тільки захисники (чоловіки)", value: "male_veterans" },
+];
+
+const PRICE_OPTIONS: ReadonlyArray<OptionRow<CostTier>> = [
+  { label: "Безкоштовно для всіх",            value: "free_for_all" },
+  { label: "Безкоштовно для ветеранів та родин", value: "free_for_veterans_and_families" },
+  { label: "Безкоштовно для УБД",             value: "free_for_ubd" },
+  { label: "Через держпрограму",              value: "free_via_state_program" },
+  { label: "Знижка для ветеранів",            value: "discount_for_veterans" },
+  { label: "Платно",                          value: "paid" },
+];
+
+const COMFORT_OPTIONS: ReadonlyArray<OptionRow<AccessibilityTag>> = [
+  { label: "Поруч укриття",            value: "shelter_nearby" },
+  { label: "Без зйомки та публікацій", value: "no_shooting" },
+  { label: "Адаптивний простір",       value: "is_accessible" },
+  { label: "18+",                      value: "age_18_plus" },
+];
+
+// "Регулярна" maps to the special `isRegular` flag (client-side filter)
+// — it isn't a real `EventRepeat` value because the backend can't express
+// "anything but `once`" in a single literal. Keeping both options as
+// `OptionRow<string>` lets us handle the toggle uniformly below.
+const RECURRENCE_OPTIONS: ReadonlyArray<{ label: string; value: "once" | "regular" }> = [
+  { label: "Одноразова", value: "once" },
+  { label: "Регулярна",  value: "regular" },
+];
+
+// ─── Atoms ────────────────────────────────────────────────────
 
 function Section({
   title,
@@ -223,67 +167,88 @@ function Chip({
   );
 }
 
+// ─── Helpers (immutable array updates) ────────────────────────
+
+function toggleArray<T>(arr: T[], value: T): T[] {
+  return arr.includes(value)
+    ? arr.filter((x) => x !== value)
+    : [...arr, value];
+}
+
+function selectOnly<T>(arr: T[], value: T): T[] {
+  // Single-select chip groups still live in arrays so the API mapping
+  // stays uniform (`for_whom[]` etc.). Toggle the same chip off → empty.
+  return arr.length === 1 && arr[0] === value ? [] : [value];
+}
+
+function pluralise(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
+// ─── Component ────────────────────────────────────────────────
+
 export function FiltersSheet({ onClose }: { onClose: () => void }) {
-  const [state, setState] = useState<FiltersState>(INITIAL_STATE);
-  const { events } = useEvents();
-
-  const reset = () => setState(EMPTY_STATE);
-
-  const toggleMulti = (key: MultiKey, val: string) => {
-    setState((s) => {
-      const next = new Set(s[key]);
-      if (next.has(val)) next.delete(val);
-      else next.add(val);
-      return { ...s, [key]: next };
+  const mounted = useMounted();
+  const setFilters = useFiltersStore((s) => s.setFilters);
+  // Start with EMPTY_FILTERS so SSR markup matches; sync the user's
+  // currently-applied filters in once we're mounted on the client. This
+  // avoids a hydration mismatch when the sheet is opened directly via
+  // `?filters=1` and lets us still pre-populate the chips for the user.
+  // Deferred via microtask to satisfy React 19's `set-state-in-effect`.
+  const [draft, setDraft] = useState<UiFilters>(EMPTY_FILTERS);
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setDraft(snapshotFilters());
     });
-  };
+  }, []);
 
-  const toggleSingle = (key: SingleKey, val: string) => {
-    setState((s) => ({ ...s, [key]: s[key] === val ? null : val }));
-  };
-
-  const isOn = (
-    section: FilterSection,
-    val: string,
-  ): boolean => {
-    if (section.multi) return state[section.key].has(val);
-    return state[section.key] === val;
-  };
-
-  const totalActive =
-    state.category.size +
-    (state.date ? 1 : 0) +
-    state.region.size +
-    (state.size ? 1 : 0) +
-    (state.audience ? 1 : 0) +
-    (state.recurrence ? 1 : 0) +
-    state.price.size +
-    state.comfort.size +
-    (state.customDate ? 1 : 0);
-
-  // Stub heuristic — every active filter shaves off a fraction of the
-  // currently-loaded events, floor at 1 so the CTA never says "0 подій".
-  // A future iteration will issue a `count`-only request that respects the
-  // selected filters; for now we just react to the live events array.
-  const matchCount = Math.max(
-    1,
-    events.length - Math.floor(totalActive / 1.5),
+  const city = useCityStore((s) => s.name);
+  // Mirror the production filter pipeline so the live count matches what
+  // the underlying screens will show after Apply.
+  const apiFilters = useMemo(
+    () => (mounted ? { city, ...uiFiltersToApi(draft) } : undefined),
+    [mounted, city, draft],
   );
+  const { events, loading } = useEvents(apiFilters);
+  const matchEvents = useMemo(
+    () => applyClientFilters(events, draft),
+    [events, draft],
+  );
+
+  const totalActive = countActiveFilters(draft);
+
+  const reset = () => setDraft(EMPTY_FILTERS);
+  const apply = () => {
+    setFilters(draft);
+    onClose();
+  };
 
   const onPickCustomDate = () => {
     const next = window.prompt(
       "Вкажи дату або проміжок (наприклад «15.05» або «13–17.05»)",
-      state.customDate ?? "",
+      draft.customDate ?? "",
     );
     if (next == null) return;
     const trimmed = next.trim();
-    setState((s) => ({
+    setDraft((s) => ({
       ...s,
       customDate: trimmed || null,
-      // Picking a custom range supersedes the preset chips.
-      date: trimmed ? null : s.date,
+      // Custom range supersedes the preset chips.
+      datePreset: trimmed ? null : s.datePreset,
     }));
   };
+
+  const ctaLabel = (() => {
+    if (totalActive === 0) return "Показати всі події";
+    if (loading) return "Шукаємо…";
+    const n = matchEvents.length;
+    if (n === 0) return "Немає подій за фільтрами";
+    return `Показати ${n} ${pluralise(n, "подію", "події", "подій")}`;
+  })();
 
   return (
     <div
@@ -332,32 +297,166 @@ export function FiltersSheet({ onClose }: { onClose: () => void }) {
           Фільтри
         </h1>
 
-        {SECTIONS.map((sec) => (
-          <Section key={sec.key} title={sec.title}>
-            {sec.options.map((opt) => (
+        <Section title="Категорія події">
+          {CATEGORY_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              on={draft.categories.includes(opt.value)}
+              onClick={() =>
+                setDraft((s) => ({
+                  ...s,
+                  categories: toggleArray(s.categories, opt.value),
+                }))
+              }
+            >
+              {opt.label}
+            </Chip>
+          ))}
+        </Section>
+
+        <Section title="Дата">
+          {DATE_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              on={draft.datePreset === opt.value}
+              onClick={() =>
+                setDraft((s) => ({
+                  ...s,
+                  datePreset: s.datePreset === opt.value ? null : opt.value,
+                  // Picking a preset clears any free-form override.
+                  customDate: null,
+                }))
+              }
+            >
+              {opt.label}
+            </Chip>
+          ))}
+          <Chip
+            on={Boolean(draft.customDate)}
+            onClick={onPickCustomDate}
+            icon={<CalIcon size={13} />}
+          >
+            {draft.customDate ?? "Вибрати дату"}
+          </Chip>
+        </Section>
+
+        <Section title="Район Києва">
+          {DISTRICT_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              on={draft.districts.includes(opt.value)}
+              onClick={() =>
+                setDraft((s) => ({
+                  ...s,
+                  districts: toggleArray(s.districts, opt.value),
+                }))
+              }
+            >
+              {opt.label}
+            </Chip>
+          ))}
+        </Section>
+
+        <Section title="Кількість учасників">
+          {SIZE_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              on={draft.participants === opt.value}
+              onClick={() =>
+                setDraft((s) => ({
+                  ...s,
+                  participants:
+                    s.participants === opt.value ? null : opt.value,
+                }))
+              }
+            >
+              {opt.label}
+            </Chip>
+          ))}
+        </Section>
+
+        <Section title="Для кого">
+          {AUDIENCE_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              on={draft.forWhom.includes(opt.value)}
+              onClick={() =>
+                setDraft((s) => ({
+                  ...s,
+                  forWhom: selectOnly(s.forWhom, opt.value),
+                }))
+              }
+            >
+              {opt.label}
+            </Chip>
+          ))}
+        </Section>
+
+        <Section title="Регулярність">
+          {RECURRENCE_OPTIONS.map((opt) => {
+            const on =
+              opt.value === "once"
+                ? draft.repeat === "once" && !draft.isRegular
+                : draft.isRegular;
+            return (
               <Chip
-                key={opt}
-                on={isOn(sec, opt)}
-                onClick={
-                  sec.multi
-                    ? () => toggleMulti(sec.key, opt)
-                    : () => toggleSingle(sec.key, opt)
-                }
+                key={opt.value}
+                on={on}
+                onClick={() => {
+                  if (opt.value === "once") {
+                    setDraft((s) => ({
+                      ...s,
+                      repeat: s.repeat === "once" ? null : ("once" as EventRepeat),
+                      isRegular: false,
+                    }));
+                  } else {
+                    setDraft((s) => ({
+                      ...s,
+                      isRegular: !s.isRegular,
+                      repeat: null,
+                    }));
+                  }
+                }}
               >
-                {opt}
+                {opt.label}
               </Chip>
-            ))}
-            {!sec.multi && sec.extra ? (
-              <Chip
-                on={Boolean(state.customDate)}
-                onClick={onPickCustomDate}
-                icon={<CalIcon size={13} />}
-              >
-                {state.customDate ?? sec.extra.label}
-              </Chip>
-            ) : null}
-          </Section>
-        ))}
+            );
+          })}
+        </Section>
+
+        <Section title="Вартість">
+          {PRICE_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              on={draft.costTiers.includes(opt.value)}
+              onClick={() =>
+                setDraft((s) => ({
+                  ...s,
+                  costTiers: toggleArray(s.costTiers, opt.value),
+                }))
+              }
+            >
+              {opt.label}
+            </Chip>
+          ))}
+        </Section>
+
+        <Section title="Безпека і комфорт">
+          {COMFORT_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              on={draft.accessibility.includes(opt.value)}
+              onClick={() =>
+                setDraft((s) => ({
+                  ...s,
+                  accessibility: toggleArray(s.accessibility, opt.value),
+                }))
+              }
+            >
+              {opt.label}
+            </Chip>
+          ))}
+        </Section>
       </div>
 
       <div
@@ -367,10 +466,14 @@ export function FiltersSheet({ onClose }: { onClose: () => void }) {
           boxShadow: "0 -1px 0 rgba(0,0,0,0.04)",
         }}
       >
-        <Btn kind="primary" size="lg" fullWidth onClick={onClose}>
-          {totalActive === 0
-            ? "Показати всі події"
-            : `Показати ${matchCount} ${matchPlural(matchCount)}`}
+        <Btn
+          kind="primary"
+          size="lg"
+          fullWidth
+          onClick={apply}
+          disabled={totalActive > 0 && !loading && matchEvents.length === 0}
+        >
+          {ctaLabel}
         </Btn>
       </div>
     </div>

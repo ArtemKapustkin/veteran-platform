@@ -1,25 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/shared/AppHeader";
-import { SearchBar } from "@/components/shared/SearchBar";
 import { BottomToolbar } from "@/components/shared/BottomToolbar";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 import { EventCardV2 } from "@/components/shared/EventCardV2";
-import { AddEventFab } from "@/components/shared/AddEventFab";
+import { FiltersButton } from "@/components/shared/FiltersButton";
 import { Overlays } from "@/components/sheets/Overlays";
-import { FilterIcon } from "@/components/icons";
-import { useEvents } from "@/lib/useEvents";
+import { useFilteredEvents } from "@/lib/useFilteredEvents";
 
 export function ListScreen() {
-  const router = useRouter();
-  const { events, loading, error } = useEvents();
-
-  const onFilters = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("filters", "1");
-    router.push(url.pathname + url.search, { scroll: false });
-  };
+  const { events, loading, error } = useFilteredEvents();
 
   return (
     <main
@@ -28,21 +18,9 @@ export function ListScreen() {
     >
       <div className="pt-3 pb-2">
         <AppHeader />
-        <div className="px-4 pt-2">
-          <SearchBar />
-        </div>
-        <div className="mt-3.5 flex items-center justify-between gap-2 px-4">
+        <div className="mt-3 flex items-center justify-between gap-2 px-4">
           <ViewToggle view="list" />
-          <button
-            type="button"
-            onClick={onFilters}
-            aria-label="Відкрити фільтри"
-            className="bg-surface text-text flex items-center gap-1.5 rounded-full px-3.5 py-2 shadow-soft"
-            style={{ fontSize: 13, fontWeight: 500 }}
-          >
-            <FilterIcon size={14} />
-            Фільтри
-          </button>
+          <FiltersButton />
         </div>
       </div>
 
@@ -61,8 +39,6 @@ export function ListScreen() {
           </div>
         )}
       </div>
-
-      <AddEventFab />
 
       <div className="absolute inset-x-3 bottom-6 z-10">
         <BottomToolbar active="list" />

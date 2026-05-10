@@ -2,18 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
-import { TgIcon, UserIcon } from "@/components/icons";
+import { PhoneIcon, UserIcon } from "@/components/icons";
+import { useLoginPromptStore } from "@/lib/useLoginPrompt";
 
 /**
  * Shown to unauthenticated visitors on /account, and as a fallback when
- * a guest lands on /saved (Збережені requires auth). Mirrors S12_AccountGuest
- * from the prototype: centered icon + copy + Telegram CTA + "Не зараз".
+ * a guest lands on /saved (Збережені requires auth). Centred icon + copy
+ * + SMS-login CTA + "Не зараз".
  */
 export function AccountGuest() {
   const router = useRouter();
 
   const handleLogin = () => {
-    router.push("/login");
+    useLoginPromptStore.getState().open();
   };
 
   const handleSkip = () => {
@@ -53,10 +54,10 @@ export function AccountGuest() {
         </p>
         <div className="mt-7 flex w-full flex-col gap-2.5">
           <Btn
-            kind="tg"
+            kind="primary"
             size="lg"
             fullWidth
-            icon={<TgIcon size={18} />}
+            icon={<PhoneIcon size={18} />}
             onClick={handleLogin}
           >
             Увійти через SMS

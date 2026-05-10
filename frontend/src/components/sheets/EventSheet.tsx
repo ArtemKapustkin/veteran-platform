@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -20,12 +19,8 @@ import {
   CalIcon,
   ClockIcon,
   PinIcon,
-  TgIcon,
   WalkIcon,
 } from "@/components/icons";
-import { telegramShareUrl } from "@/lib/share";
-import { useEventsStore } from "@/lib/store";
-import { useMounted } from "@/lib/useMounted";
 import type { AppEvent } from "@/data/events";
 
 // Snap heights as a fraction of the dialog container (the map view).
@@ -52,11 +47,10 @@ export function EventSheet({
   event: AppEvent;
   onClose: () => void;
 }) {
-  const router = useRouter();
-  const mounted = useMounted();
-  const setRsvp = useEventsStore((s) => s.setRsvp);
-  const isRsvpReal = useEventsStore((s) => s.rsvpIds.includes(event.id));
-  const isRsvp = mounted && isRsvpReal;
+  // The map-pin sheet is intentionally a quick preview: title, meta,
+  // attendee count, and one CTA to the full event page. RSVP / group
+  // invites / Telegram share all live on /events/[id] so we don't have
+  // to duplicate state and auth-guard plumbing across two surfaces.
 
   // ─── Draggable-sheet state ────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
@@ -159,27 +153,6 @@ export function EventSheet({
     },
     [containerH, onClose, sheetHeightPx, snap],
   );
-
-  // ─── Action handlers (unchanged) ──────────────────────────────
-  const handleRsvp = async () => {
-    try {
-      await setRsvp(event.id, !isRsvp);
-      if (!isRsvp) router.push(`/events/${event.id}`);
-    } catch (e) {
-      // Quota exhausted, verified-only block, network error — surface
-      // the backend's message to the user via window.alert (no toast lib
-      // in this app yet) so the button doesn't appear to silently no-op.
-      window.alert(`Не вдалось оформити запис: ${(e as Error).message}`);
-    }
-  };
-
-  const handleShare = () => {
-    window.open(
-      telegramShareUrl(event),
-      "_blank",
-      "noopener,noreferrer",
-    );
-  };
 
   // While dragging we want instant follow; when we release we want a
   // smooth snap. Apply via inline style so we don't trigger a CSS reflow
@@ -309,42 +282,20 @@ export function EventSheet({
               {event.description}
             </p>
           ) : null}
-          <div className="flex flex-col gap-2">
+          <Link
+            href={`/events/${event.id}`}
+            aria-label={`Перейти до події «${event.title}»`}
+          >
             <Btn
-              kind="invite"
+              kind="primary"
               size="lg"
-              onClick={handleShare}
-              icon={<TgIcon size={17} />}
               fullWidth
+              asLink
+              iconRight={<ArrowIcon size={18} />}
             >
-              Покликати побратима
+              Перейти до події
             </Btn>
-            <div className="flex gap-2">
-              <Btn
-                kind={isRsvp ? "success" : "secondary"}
-                size="md"
-                onClick={handleRsvp}
-                fullWidth
-                className="flex-1"
-              >
-                {isRsvp ? "Ти йдеш" : "Я йду"}
-              </Btn>
-              <Link
-                href={`/events/${event.id}`}
-                aria-label="Деталі події"
-              >
-                <Btn
-                  kind="ghost"
-                  size="md"
-                  asLink
-                  className="gap-1.5 px-3"
-                  iconRight={<ArrowIcon size={18} />}
-                >
-                  Деталі
-                </Btn>
-              </Link>
-            </div>
-          </div>
+          </Link>
         </div>
       </div>
     </div>

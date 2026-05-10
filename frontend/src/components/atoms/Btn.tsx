@@ -50,6 +50,12 @@ export interface BtnProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
   fullWidth?: boolean;
   asLink?: boolean;
   type?: "button" | "submit";
+  /**
+   * When true, swap the leading icon for a spinner and force `disabled`.
+   * Used by async actions (RSVP, share) so a tap can't double-fire while
+   * the request is in flight.
+   */
+  loading?: boolean;
 }
 
 export function Btn({
@@ -62,6 +68,8 @@ export function Btn({
   className,
   asLink,
   type = "button",
+  loading,
+  disabled,
   ...rest
 }: BtnProps) {
   const style: CSSProperties = {
@@ -81,12 +89,14 @@ export function Btn({
     className,
   );
 
+  const leading = loading ? <Spinner size={size === "lg" ? 18 : 15} /> : icon;
+
   if (asLink) {
     // Caller wraps with <Link>; render a span that LOOKS like a button so we
     // don't nest <a><button>. The <Link> provides interactivity.
     return (
       <span className={classes} style={style} role="presentation">
-        {icon}
+        {leading}
         {children}
         {iconRight}
       </span>
@@ -94,10 +104,50 @@ export function Btn({
   }
 
   return (
-    <button type={type} className={classes} style={style} {...rest}>
-      {icon}
+    <button
+      type={type}
+      className={classes}
+      style={style}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      {...rest}
+    >
+      {leading}
       {children}
       {iconRight}
     </button>
+  );
+}
+
+/**
+ * Inline SVG spinner — kept private to Btn so callers don't have to wire
+ * one themselves. Inherits `currentColor`, so it always matches the
+ * surrounding button text colour without per-kind overrides.
+ */
+function Spinner({ size }: { size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ animation: "spin 0.8s linear infinite" }}
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeOpacity="0.25"
+      />
+      <path
+        d="M21 12a9 9 0 0 0-9-9"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

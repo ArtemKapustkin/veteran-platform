@@ -107,6 +107,7 @@ export const BackIcon = makeIcon(() => <path d="M15 6l-6 6 6 6" />);
 export const ArrowIcon = makeIcon(() => (
   <path d="M5 12h14M13 6l6 6-6 6" />
 ));
+export const ChevronDownIcon = makeIcon(() => <path d="M6 9l6 6 6-6" />);
 
 export const ShareIcon = makeIcon(() => (
   <path d="M12 16V4M8 8l4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
@@ -172,4 +173,26 @@ export const GlobeIcon = makeIcon(() => (
     <circle cx="12" cy="12" r="9" />
     <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
   </>
+));
+
+export const PhoneIcon = makeIcon(() => (
+  <path d="M5 4.5C5 3.7 5.7 3 6.5 3h2.4c.7 0 1.3.5 1.5 1.2l.9 3.3c.1.6-.1 1.2-.6 1.6L9 10.5a13 13 0 0 0 5.5 5.5l1.4-1.7c.4-.5 1-.7 1.6-.6l3.3.9c.7.2 1.2.8 1.2 1.5v2.4c0 .8-.7 1.5-1.5 1.5h-1A16 16 0 0 1 4 5.5v-1z" />
+));
+
+export const ShieldCheckIcon = makeIcon(() => (
+  <>
+    <path d="M12 3 4 6v6c0 4.5 3 8.5 8 9 5-.5 8-4.5 8-9V6l-8-3z" />
+    <path d="m9 12 2 2 4-4" />
+  </>
+));
+
+export const LockIcon = makeIcon(() => (
+  <>
+    <rect x="4" y="11" width="16" height="10" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </>
+));
+
+export const SparkleIcon = makeIcon(() => (
+  <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.5 5.5l2.8 2.8M15.7 15.7l2.8 2.8M5.5 18.5l2.8-2.8M15.7 8.3l2.8-2.8" />
 ));

@@ -24,6 +24,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Pull secrets (JWT, Twilio, OpenAI, …) from the gitignored
+    # ../config/.env. Falls back gracefully on fresh checkouts so CI
+    # without a populated env file still boots — the values below are
+    # the dev defaults the binary needs to talk to the in-network DB.
+    env_file:
+      - path: ../config/.env
+        required: false
     environment:
       HTTP_PORT: 8088
       DB_HOST: postgres

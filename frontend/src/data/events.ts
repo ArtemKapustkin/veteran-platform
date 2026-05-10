@@ -7,6 +7,7 @@
 import type { Person } from "./people";
 import type { EventCategory } from "./categories";
 import type { PhotoTone } from "@/components/atoms/Photo";
+import type { EventRepeat } from "@/lib/api";
 
 export interface AppEvent {
   /** UUID from the backend (`ApiEvent.id`). */
@@ -34,6 +35,12 @@ export interface AppEvent {
   description: string;
   /** Coordinates for MapLibre. Falls back to Kyiv center if absent. */
   location: { lat: number; lng: number };
+  /**
+   * Recurrence flag (`once`/`weekly`/etc). Mirrors `ApiEvent.repeat` —
+   * carried through so the client-side "Регулярна" filter can run without
+   * a second fetch.
+   */
+  repeat?: EventRepeat;
   /** Empty state — "+" pin, "Будь першим". */
   beFirst?: boolean;
 }

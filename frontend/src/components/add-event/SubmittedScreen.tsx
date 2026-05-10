@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Btn } from "@/components/atoms/Btn";
 import { CalIcon, CheckIcon, PinIcon, PlusIcon } from "@/components/icons";
 import { DesktopNav } from "@/components/desktop/DesktopNav";
+import { Overlays } from "@/components/sheets/Overlays";
 import { useIsDesktop } from "@/lib/useIsDesktop";
 import type { EventDraft } from "./draft";
 
@@ -182,6 +183,7 @@ export function SubmittedScreen({
       <div className="bg-bg flex flex-col" style={{ minHeight: "100vh" }}>
         <DesktopNav />
         {card}
+        <Overlays desktop />
       </div>
     );
   }

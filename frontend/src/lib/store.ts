@@ -191,6 +191,27 @@ interface EventsState {
    */
   setRsvp: (eventId: string, on: boolean) => Promise<void>;
 
+  /**
+   * Group-register for an event with `seats` (2..4) and `companion_phones`
+   * (length must equal `seats - 1`, E.164 format). Backend triggers SMS
+   * invitations for each companion. Resolves with the created
+   * Registration so callers can route / confirm. Throws ApiError on
+   * validation / quota / auth failures.
+   */
+  setRsvpGroup: (
+    eventId: string,
+    seats: number,
+    companionPhones: string[],
+  ) => Promise<Registration>;
+
+  /**
+   * Inject a Registration into the cache (e.g. after the recipient
+   * accepts an invitation). The backend has already done the write —
+   * this just keeps the local heart / "Ти йдеш" state in sync without a
+   * second round-trip.
+   */
+  applyRegistration: (reg: Registration) => void;
+
   /** Hydrate `rsvpIds` + `registrations` from /me/registrations. */
   hydrate: () => Promise<void>;
 
@@ -207,29 +228,30 @@ export const useEventsStore = create<EventsState>()(
       isRsvp: (id) => get().rsvpIds.includes(id),
       isSaved: (id) => get().savedIds.includes(id),
 
-      toggleSaved: (id) =>
+      toggleSaved: (id) => {
+        // Saving is a personal feature — guests can't bookmark events.
+        // UI gates this with `useAuthGuard()` and surfaces the prompt;
+        // the noop here is a safety net so a stray call never writes
+        // local state for an unauthenticated visitor.
+        if (!useAuthStore.getState().isAuthenticated()) return;
         set((s) => ({
           savedIds: s.savedIds.includes(id)
             ? s.savedIds.filter((x) => x !== id)
             : [...s.savedIds, id],
-        })),
+        }));
+      },
 
       setRsvp: async (eventId, on) => {
         const auth = useAuthStore.getState();
         if (!auth.isAuthenticated()) {
-          // Without a session the registration call would 401 — fall back
-          // to a client-only optimistic flag so guests can mark intent and
-          // the caller can prompt for login.
-          set((s) => ({
-            rsvpIds: on
-              ? Array.from(new Set([...s.rsvpIds, eventId]))
-              : s.rsvpIds.filter((x) => x !== eventId),
-            savedIds:
-              on && !s.savedIds.includes(eventId)
-                ? [...s.savedIds, eventId]
-                : s.savedIds,
-          }));
-          return;
+          // RSVP requires an account so the backend can register the
+          // veteran for the event. UI gates this with `useAuthGuard()`;
+          // throwing here makes a missed guard fail loudly instead of
+          // silently writing local state that won't sync to the server.
+          throw new ApiError(401, {
+            code: "auth_required",
+            message: "Увійди, щоб записатись на подію",
+          });
         }
 
         if (on) {
@@ -259,6 +281,35 @@ export const useEventsStore = create<EventsState>()(
             };
           });
         }
+      },
+
+      setRsvpGroup: async (eventId, seats, companionPhones) => {
+        const auth = useAuthStore.getState();
+        if (!auth.isAuthenticated()) {
+          throw new ApiError(401, {
+            code: "auth_required",
+            message: "Увійди, щоб записатись на подію",
+          });
+        }
+        const reg = await eventsApi.register(eventId, {
+          seats,
+          companion_phones: companionPhones,
+        });
+        set((s) => ({
+          rsvpIds: Array.from(new Set([...s.rsvpIds, eventId])),
+          registrations: { ...s.registrations, [eventId]: reg },
+          savedIds: s.savedIds.includes(eventId)
+            ? s.savedIds
+            : [...s.savedIds, eventId],
+        }));
+        return reg;
+      },
+
+      applyRegistration: (reg) => {
+        set((s) => ({
+          rsvpIds: Array.from(new Set([...s.rsvpIds, reg.event_id])),
+          registrations: { ...s.registrations, [reg.event_id]: reg },
+        }));
       },
 
       hydrate: async () => {

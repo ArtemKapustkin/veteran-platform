@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Avatar } from "@/components/atoms/Avatar";
-import { AccessIcon, PlusIcon } from "@/components/icons";
+import { AccessIcon } from "@/components/icons";
 import { useAuthStore } from "@/lib/store";
+import { useLoginPromptStore } from "@/lib/useLoginPrompt";
 import { useMounted } from "@/lib/useMounted";
-import { cn } from "@/lib/cn";
 
 function NavTab({
   label,
@@ -86,9 +86,9 @@ export function DesktopNav() {
     pathname === "/map" ||
     pathname === "/list" ||
     pathname.startsWith("/events");
+  const communitiesActive = pathname.startsWith("/communities");
   const savedActive = pathname === "/saved";
   const accountActive = pathname === "/account";
-  const addEventActive = pathname === "/add-event";
 
   return (
     <header
@@ -117,7 +117,11 @@ export function DesktopNav() {
 
       <nav className="ml-6 flex items-center gap-0.5" aria-label="Розділи">
         <NavTab label="Події поруч" href="/map" active={eventsActive} />
-        <ComingSoonItem label="Спільноти поруч" />
+        <NavTab
+          label="Спільноти поруч"
+          href="/communities"
+          active={communitiesActive}
+        />
         <ComingSoonItem label="Акції поруч" />
         {isLoggedIn ? (
           <NavTab label="Збережені" href="/saved" active={savedActive} />
@@ -125,19 +129,6 @@ export function DesktopNav() {
       </nav>
 
       <div className="flex-1" />
-
-      <Link
-        href="/add-event"
-        aria-current={addEventActive ? "page" : undefined}
-        className={cn(
-          "border-border text-text flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5 transition-colors hover:bg-[#F8F6F1]",
-          addEventActive ? "bg-[#F8F6F1]" : "bg-transparent",
-        )}
-        style={{ fontSize: 14, fontWeight: 500, letterSpacing: "-0.005em" }}
-      >
-        <PlusIcon size={15} />
-        Додати подію
-      </Link>
 
       <button
         type="button"
@@ -172,13 +163,14 @@ export function DesktopNav() {
           </span>
         </Link>
       ) : (
-        <Link
-          href="/login"
+        <button
+          type="button"
+          onClick={() => useLoginPromptStore.getState().open()}
           className="bg-primary inline-flex items-center justify-center rounded-[10px] px-4.5 py-2.5 text-white shadow-[0_1px_2px_rgba(31,77,52,0.22)] hover:brightness-[1.04]"
           style={{ fontSize: 14, fontWeight: 500, letterSpacing: "-0.005em" }}
         >
           Увійти
-        </Link>
+        </button>
       )}
     </header>
   );
