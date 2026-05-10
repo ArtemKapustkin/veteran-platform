@@ -43,7 +43,7 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
   const [submitting, setSubmitting] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Lock body scroll + Escape-to-close, matching LoginPromptDialog.
+  // Lock body scroll + Escape-to-close, standard for our dialogs.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !submitting) onClose();
@@ -191,7 +191,7 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
             lineHeight: 1.25,
           }}
         >
-          Записатись з побратимом
+          Запросити побратима
         </h2>
         <p
           className="text-text2 mt-2 mb-0"

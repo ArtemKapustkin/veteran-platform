@@ -224,10 +224,11 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
 
       <div
         ref={barRef}
-        className="absolute inset-x-0 bottom-0 flex flex-col gap-3 px-4.5 pt-3.5 pb-6.5 backdrop-blur-md"
+        className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-3 px-4.5 pt-3.5 pb-6.5 backdrop-blur-md"
         style={{
           background: "rgba(255,255,255,0.95)",
           boxShadow: "0 -1px 0 rgba(0,0,0,0.04)",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 26px)",
         }}
       >
         <InvitationBanner eventId={event.id} />
@@ -280,7 +281,7 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
               loading={rsvpPending}
               onClick={() => handleRsvp(true)}
             >
-              Я йду
+              Зареєструватись на подію
             </Btn>
             <Btn
               kind="secondary"
@@ -289,7 +290,7 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
               icon={<UserIcon size={18} />}
               onClick={openGroup}
             >
-              Записатись з побратимом
+              Запросити побратима
             </Btn>
           </div>
         )}

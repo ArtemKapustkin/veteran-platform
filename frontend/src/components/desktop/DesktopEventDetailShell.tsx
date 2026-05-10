@@ -363,7 +363,7 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
                     loading={rsvpPending}
                     onClick={() => handleRsvp(true)}
                   >
-                    Я йду
+                    Зареєструватись на подію
                   </Btn>
                   <Btn
                     kind="secondary"
@@ -372,7 +372,7 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
                     icon={<UserIcon size={18} />}
                     onClick={openGroup}
                   >
-                    Записатись з побратимом
+                    Запросити побратима
                   </Btn>
                 </div>
               )}
