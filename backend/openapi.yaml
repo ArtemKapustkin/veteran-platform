@@ -1254,15 +1254,17 @@ components:
         items:      { type: array, items: { $ref: '#/components/schemas/Registration' } }
         pagination: { $ref: '#/components/schemas/Pagination' }
 
-    Invitation:
+    InvitationLookup:
       type: object
-      description: A pending companion slot in someone else's group registration.
+      description: Public preview of a Telegram-share invitation slot.
       properties:
-        id:                     { type: string, format: uuid }
+        token:                  { type: string }
         registration_id:        { type: string, format: uuid }
         event:                  { $ref: '#/components/schemas/Event' }
         invited_by_fullname:    { type: string, nullable: true }
-        invited_by_phone:       { type: string }
         seats_in_group:         { type: integer }
         reservation_expires_at: { type: string, format: date-time }
         status:                 { type: string, enum: [pending, confirmed, declined] }
+        already_claimed_by_me:
+          type: boolean
+          description: True when the caller is signed in and already claimed this slot.
