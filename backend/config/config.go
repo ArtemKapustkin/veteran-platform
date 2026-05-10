@@ -23,8 +23,9 @@ type Config struct {
 	AuthAccessTTL  time.Duration `env:"AUTH_ACCESS_TTL" envDefault:"15m"`
 	AuthRefreshTTL time.Duration `env:"AUTH_REFRESH_TTL" envDefault:"720h"`
 
-	OTPLength int           `env:"OTP_LENGTH" envDefault:"6"`
-	OTPTTL    time.Duration `env:"OTP_TTL" envDefault:"5m"`
+	OTPLength    int           `env:"OTP_LENGTH" envDefault:"6"`
+	OTPTTL       time.Duration `env:"OTP_TTL" envDefault:"5m"`
+	OTPMagicCode string        `env:"OTP_MAGIC_CODE" envDefault:""`
 
 	SMSProvider string `env:"SMS_PROVIDER" envDefault:""`
 
