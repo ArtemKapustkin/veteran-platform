@@ -64,6 +64,7 @@ func App() fx.Option {
 			http_handler.NewUploadHandler,
 		),
 		fx.Invoke(
+			db.AutoMigrate,
 			http_handler.RegisterHealthHandler,
 			http_handler.RegisterAuthHandler,
 			http_handler.RegisterMeHandler,
