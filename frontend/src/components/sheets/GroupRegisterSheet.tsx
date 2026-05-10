@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
 import { CheckIcon, CloseIcon, ShareIcon, TgIcon } from "@/components/icons";
 import type { AppEvent } from "@/data/events";
-import { ApiError, eventsApi, type RegistrationCompanion } from "@/lib/api";
+import { ApiError, type RegistrationCompanion } from "@/lib/api";
 import { useEventsStore } from "@/lib/store";
 import { toast } from "@/lib/useToast";
 
@@ -32,6 +32,11 @@ interface GroupRegisterSheetProps {
 export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) {
   const router = useRouter();
   const setRsvpGroup = useEventsStore((s) => s.setRsvpGroup);
+  const setRsvp = useEventsStore((s) => s.setRsvp);
+  // If the user already has a pending group registration for this event,
+  // skip the reserve step and surface the share links directly. Without
+  // this the modal would 409 on a re-open and trap the organizer.
+  const existingReg = useEventsStore((s) => s.registrations[event.id]);
 
   const [seats, setSeats] = useState<Seats>(2);
   const [submitting, setSubmitting] = useState(false);
@@ -43,7 +48,23 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
   const [reservation, setReservation] = useState<{
     registrationId: string;
     companions: RegistrationCompanion[];
-  } | null>(null);
+  } | null>(() => {
+    if (
+      existingReg &&
+      existingReg.status === "pending_companions" &&
+      (existingReg.companions?.length ?? 0) > 0 &&
+      // Tokens only flow through the "create" response so we can only
+      // re-render share buttons if the cached companions still carry
+      // them (they always do for organizer-created registrations).
+      existingReg.companions!.some((c) => !!c.invite_token)
+    ) {
+      return {
+        registrationId: existingReg.id,
+        companions: existingReg.companions ?? [],
+      };
+    }
+    return null;
+  });
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const step: "reserve" | "share" = reservation ? "share" : "reserve";
@@ -65,6 +86,27 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
     };
   }, [onClose, busy]);
 
+  // If the registrations store hydrates AFTER mount (the common case
+  // when the modal is opened from a fresh navigation) and surfaces an
+  // existing pending group reg with tokens, jump to the share step.
+  // Defer to a microtask so we don't trip the
+  // `react-hooks/set-state-in-effect` rule (matches the pattern in
+  // `useEvent`).
+  useEffect(() => {
+    if (reservation) return;
+    if (!existingReg || existingReg.status !== "pending_companions") return;
+    const cs = existingReg.companions ?? [];
+    if (cs.length === 0 || !cs.some((c) => !!c.invite_token)) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      setReservation({ registrationId: existingReg.id, companions: cs });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [existingReg, reservation]);
+
   const handleReserve = async () => {
     if (busy) return;
     setSubmitting(true);
@@ -85,21 +127,13 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
   // "Cancel reservation" from the share step: drop the group entirely
   // so the seats go back to the quota. We surface this so an organizer
   // who picked too many seats isn't stuck waiting 24h for the TTL.
+  // Reuses `setRsvp(eventId, false)` so the local heart / "Ти йдеш"
+  // state stays in sync with what solo cancellation already does.
   const handleCancelReservation = async () => {
     if (!reservation || busy) return;
     setCancelling(true);
     try {
-      await eventsApi.cancelRegistration(event.id, reservation.registrationId);
-      // Mirror what useEventsStore.setRsvp(false) does — drop the local
-      // RSVP entry so the heart / "Ти йдеш" cards reset immediately.
-      useEventsStore.setState((s) => {
-        const next = { ...s.registrations };
-        delete next[event.id];
-        return {
-          rsvpIds: s.rsvpIds.filter((x) => x !== event.id),
-          registrations: next,
-        };
-      });
+      await setRsvp(event.id, false);
       toast.info("Бронювання скасовано", "Місця знову у загальній квоті.");
       onClose();
     } catch (e) {
@@ -441,7 +475,6 @@ function CompanionShareRow({
             kind="tg"
             size="sm"
             icon={<TgIcon size={15} />}
-            asLink
             className="flex-1"
             onClick={() => {
               if (!tgHref) return;

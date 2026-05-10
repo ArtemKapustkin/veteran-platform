@@ -24,12 +24,14 @@ ALTER TABLE vp.registration_companions
 ALTER TABLE vp.registration_companions
     ADD COLUMN invite_token text;
 
+-- Backfill any pre-existing companion rows with a unique placeholder
+-- so the unique index can be added below. We use gen_random_uuid()
+-- (PostgreSQL core, no pgcrypto dependency) since legacy SMS-flow
+-- rows don't need to be claimable via the new share-link endpoints
+-- — they exist only in dev/seed data.
 UPDATE vp.registration_companions
-SET invite_token = encode(gen_random_bytes(18), 'base64')
+SET invite_token = replace(gen_random_uuid()::text, '-', '')
 WHERE invite_token IS NULL;
-
-UPDATE vp.registration_companions
-SET invite_token = replace(replace(replace(invite_token, '+', '-'), '/', '_'), '=', '');
 
 CREATE UNIQUE INDEX registration_companions_invite_token_idx
     ON vp.registration_companions (invite_token);

@@ -63,18 +63,6 @@ func (r *RegistrationRepository) FindActiveByEventAndVeteran(ctx context.Context
 	return &reg, nil
 }
 
-func (r *RegistrationRepository) FindCompanionByID(ctx context.Context, id uuid.UUID) (*model.RegistrationCompanion, error) {
-	var c model.RegistrationCompanion
-	err := r.db.NewSelect().Model(&c).Where("id = ?", id).Scan(ctx)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &c, nil
-}
-
 // FindCompanionByInviteToken resolves the public Telegram-share token
 // to the companion row that owns it. Returns nil when the token is
 // unknown so callers can return 404 to anonymous probes without

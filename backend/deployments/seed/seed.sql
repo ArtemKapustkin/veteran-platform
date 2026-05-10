@@ -399,9 +399,12 @@ SELECT
   gen_random_uuid(),
   nr.id,
   phone,
-  -- URL-safe base64 token, padding stripped to match what
-  -- backend/internal/service/application/registration_service.go emits.
-  rtrim(translate(encode(gen_random_bytes(18), 'base64'), '+/', '-_'), '='),
+  -- Placeholder unique token (UUID hex) so the unique index is
+  -- satisfied. Real tokens come from
+  -- backend/internal/service/application/registration_service.go
+  -- (URL-safe base64 of 18 random bytes); seed rows only exist for
+  -- dev so the format mismatch doesn't matter.
+  replace(gen_random_uuid()::text, '-', ''),
   NULL,
   'pending'::vp.companion_status,
   now() - interval '4 hours'

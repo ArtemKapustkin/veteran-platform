@@ -5,25 +5,22 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/valyala/fasthttp"
 
-	"github.com/ArtemKapustkin/veteran-platform/backend/internal/repository"
 	"github.com/ArtemKapustkin/veteran-platform/backend/internal/service/application"
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/server"
 )
 
 type MeHandler struct {
-	veteran  *application.VeteranService
-	regs     *application.RegistrationService
-	veterans *repository.VeteranRepository
-	auth     *server.AuthMiddleware
+	veteran *application.VeteranService
+	regs    *application.RegistrationService
+	auth    *server.AuthMiddleware
 }
 
 func NewMeHandler(
 	veteran *application.VeteranService,
 	regs *application.RegistrationService,
-	veterans *repository.VeteranRepository,
 	auth *server.AuthMiddleware,
 ) *MeHandler {
-	return &MeHandler{veteran: veteran, regs: regs, veterans: veterans, auth: auth}
+	return &MeHandler{veteran: veteran, regs: regs, auth: auth}
 }
 
 func RegisterMeHandler(r *fhrouter.Router, h *MeHandler) {
