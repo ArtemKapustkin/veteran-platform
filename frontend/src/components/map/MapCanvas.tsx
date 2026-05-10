@@ -12,6 +12,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { KYIV_CENTER } from "@/data/events";
 
 // `liberty` is OpenFreeMap's full-color OSM Liberty style — soft green parks,
 // pastel water, gentle road tints. Was previously `positron` (greyscale-ish);
@@ -36,8 +37,8 @@ export interface MapCanvasProps {
 
 export const MapCanvas = forwardRef<MapRef, MapCanvasProps>(function MapCanvas(
   {
-    longitude = 30.5234,
-    latitude = 50.4501,
+    longitude: lonIn,
+    latitude: latIn,
     zoom = 12.2,
     minZoom = 10,
     maxZoom = 17,
@@ -48,6 +49,13 @@ export const MapCanvas = forwardRef<MapRef, MapCanvasProps>(function MapCanvas(
   },
   forwardedRef,
 ) {
+  // Explicit `null` from callers bypasses JS default params; MapLibre then
+  // throws "Expected value to be of type number, but found null".
+  const longitude =
+    lonIn != null && Number.isFinite(lonIn) ? lonIn : KYIV_CENTER.lng;
+  const latitude =
+    latIn != null && Number.isFinite(latIn) ? latIn : KYIV_CENTER.lat;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const internalMapRef = useRef<MapRef | null>(null);
 

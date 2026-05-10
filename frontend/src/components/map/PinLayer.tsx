@@ -3,7 +3,7 @@
 import { Marker } from "react-map-gl/maplibre";
 import { useRouter } from "next/navigation";
 import type { AppEvent } from "@/data/events";
-import { CATEGORIES } from "@/data/categories";
+import { categoryMeta } from "@/data/categories";
 import { EventPin } from "./EventPin";
 
 export function PinLayer({
@@ -18,13 +18,16 @@ export function PinLayer({
   return (
     <>
       {events.map((e) => {
-        const meta = CATEGORIES[e.category];
+        const meta = categoryMeta(e.category);
         const focused = focusedId === e.id;
+        const lng = e.location?.lng;
+        const lat = e.location?.lat;
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
         return (
           <Marker
             key={e.id}
-            longitude={e.location.lng}
-            latitude={e.location.lat}
+            longitude={lng}
+            latitude={lat}
             anchor="bottom"
           >
             <EventPin

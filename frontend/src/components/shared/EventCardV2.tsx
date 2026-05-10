@@ -6,7 +6,7 @@ import { Pill, type PillColor } from "@/components/atoms/Pill";
 import { CounterBlock } from "@/components/shared/CounterBlock";
 import { SeatBar } from "@/components/shared/SeatBar";
 import { HeartFillIcon, HeartIcon, PinIcon } from "@/components/icons";
-import { CATEGORIES } from "@/data/categories";
+import { categoryMeta } from "@/data/categories";
 import type { AppEvent } from "@/data/events";
 import { useEventsStore } from "@/lib/store";
 import { useAuthGuard } from "@/lib/useAuthGuard";
@@ -68,7 +68,7 @@ export function EventCardV2({
   active?: boolean;
   onSelect?: () => void;
 }) {
-  const meta = CATEGORIES[event.category];
+  const meta = categoryMeta(event.category);
   const mounted = useMounted();
   const toggleSaved = useEventsStore((s) => s.toggleSaved);
   const isSavedReal = useEventsStore((s) => s.savedIds.includes(event.id));

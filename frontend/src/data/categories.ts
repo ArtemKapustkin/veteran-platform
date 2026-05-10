@@ -28,6 +28,20 @@ export const CATEGORIES: Record<EventCategory, CategoryMeta> = {
   nature:         { color: "#D89A60", pinColor: "amber", label: "Природа і тури" },
 };
 
+/** Fallback when the API ships a category the SPA enum has not caught up with yet. */
+const UNKNOWN_CATEGORY_META: CategoryMeta = {
+  color: "#9CA3AF",
+  pinColor: "amber",
+  label: "Подія",
+};
+
+export function categoryMeta(category: string | undefined | null): CategoryMeta {
+  if (category != null && category in CATEGORIES) {
+    return CATEGORIES[category as EventCategory];
+  }
+  return UNKNOWN_CATEGORY_META;
+}
+
 export const CATEGORY_LIST: { code: EventCategory; label: string }[] = (
   Object.entries(CATEGORIES) as [EventCategory, CategoryMeta][]
 ).map(([code, meta]) => ({ code, label: meta.label }));

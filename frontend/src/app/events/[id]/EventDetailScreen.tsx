@@ -21,8 +21,8 @@ import {
   UserIcon,
 } from "@/components/icons";
 import { GroupRegisterSheet } from "@/components/sheets/GroupRegisterSheet";
-import { CATEGORIES } from "@/data/categories";
-import type { AppEvent } from "@/data/events";
+import { categoryMeta } from "@/data/categories";
+import { safeMapPoint, type AppEvent } from "@/data/events";
 import { useEventsStore } from "@/lib/store";
 import { useAuthGuard } from "@/lib/useAuthGuard";
 import { useMounted } from "@/lib/useMounted";
@@ -96,7 +96,8 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
     }
   };
 
-  const meta = CATEGORIES[event.category];
+  const meta = categoryMeta(event.category);
+  const mapPt = safeMapPoint(event.location);
 
   return (
     <main
@@ -201,14 +202,14 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
           aria-label="Місце події на карті"
         >
           <MapCanvas
-            longitude={event.location.lng}
-            latitude={event.location.lat}
+            longitude={mapPt.lng}
+            latitude={mapPt.lat}
             zoom={14}
             interactive={false}
           >
             <Marker
-              longitude={event.location.lng}
-              latitude={event.location.lat}
+              longitude={mapPt.lng}
+              latitude={mapPt.lat}
               anchor="bottom"
             >
               <EventPin

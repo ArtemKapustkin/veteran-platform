@@ -48,3 +48,15 @@ export interface AppEvent {
 }
 
 export const KYIV_CENTER = { lat: 50.4501, lng: 30.5234 };
+
+/** MapLibre rejects null/NaN; callers may pass raw API coords without going through the mapper. */
+export function safeMapPoint(loc: { lat?: number | null; lng?: number | null }): {
+  lat: number;
+  lng: number;
+} {
+  const { lat, lng } = loc;
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return { lat: lat as number, lng: lng as number };
+  }
+  return KYIV_CENTER;
+}
