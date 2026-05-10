@@ -208,7 +208,11 @@ function fromEvent(ev: ApiEvent): FormState {
     veteranPriceUah:
       ev.cost?.veteran_price_uah != null ? String(ev.cost.veteran_price_uah) : "",
     verifiedOnly: ev.verified_only,
-    accessibility: new Set(ev.accessibility_tags ?? []),
+    accessibility: new Set(
+      (ev.accessibility_tags ?? []).map((t) =>
+        t === "no_shooting_or_publishing" ? "no_shooting" : t,
+      ),
+    ),
     city: ev.location?.city ?? "",
     district: (ev.location?.district as KyivDistrict | undefined) ?? "",
     address: ev.location?.address ?? "",

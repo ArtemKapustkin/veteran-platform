@@ -66,12 +66,13 @@ const COST_BADGE: Record<CostTier, string> = {
 };
 
 const TAG_BADGE: Partial<Record<AccessibilityTag, string>> = {
-  no_shooting:    "Без зйомки",
-  is_accessible:  "Адаптивне",
-  kids_allowed:   "Можна з дітьми",
-  separate_zones: "Окремі зони",
-  shelter_nearby: "Поруч укриття",
-  age_18_plus:    "18+",
+  no_shooting:                 "Без зйомки",
+  no_shooting_or_publishing:   "Без зйомки",
+  is_accessible:               "Адаптивне",
+  kids_allowed:                "Можна з дітьми",
+  separate_zones:              "Окремі зони",
+  shelter_nearby:              "Поруч укриття",
+  age_18_plus:                 "18+",
 };
 
 const DOW = ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"] as const;
@@ -106,7 +107,16 @@ function buildPlace(loc: ApiEvent["location"]): string {
   return parts.join(", ") || "Локація уточнюється";
 }
 
-function buildBadges(ev: ApiEvent): string[] {
+function accessibilityLabelsFromApi(ev: ApiEvent): string[] {
+  const out: string[] = [];
+  for (const tag of ev.accessibility_tags ?? []) {
+    const label = TAG_BADGE[tag];
+    if (label) out.push(label);
+  }
+  return out;
+}
+
+function buildBadges(ev: ApiEvent, accessibilityLabels: string[]): string[] {
   const badges: string[] = [];
 
   const forWhomLabel = FOR_WHOM_BADGE[ev.for_whom];
@@ -116,13 +126,8 @@ function buildBadges(ev: ApiEvent): string[] {
 
   if (ev.verified_only) badges.push("Тільки УБД");
 
-  for (const tag of ev.accessibility_tags ?? []) {
-    const label = TAG_BADGE[tag];
-    if (label) badges.push(label);
-  }
-
-  // Cap to 3 visible badges to match the original card layout.
-  return badges.slice(0, 3);
+  badges.push(...accessibilityLabels);
+  return badges;
 }
 
 function buildLocation(ev: ApiEvent): { lat: number; lng: number } {
@@ -187,6 +192,7 @@ function attendeeToPerson(a: ApiEventAttendee): Person {
 
 export function apiEventToAppEvent(ev: ApiEvent): AppEvent {
   const seats = ev.seats_taken ?? 0;
+  const accessibilityLabels = accessibilityLabelsFromApi(ev);
   const attendees = (ev.attendees ?? []).map(attendeeToPerson);
   // The UI shows the first 1-2 names inline ("Іван, Микола та інші").
   // Drop entries where the only thing we know is the initial — a single
@@ -206,7 +212,8 @@ export function apiEventToAppEvent(ev: ApiEvent): AppEvent {
     date: formatDate(ev.starts_at),
     time: formatTime(ev.starts_at),
     distance: "",
-    badges: buildBadges(ev),
+    accessibilityLabels,
+    badges: buildBadges(ev, accessibilityLabels),
     count: seats,
     capacity: ev.quota,
     attendees,

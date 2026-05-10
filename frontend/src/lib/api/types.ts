@@ -62,6 +62,7 @@ export interface EventCost {
 export type AccessibilityTag =
   | "is_accessible"
   | "no_shooting"
+  | "no_shooting_or_publishing"
   | "kids_allowed"
   | "separate_zones"
   | "shelter_nearby"

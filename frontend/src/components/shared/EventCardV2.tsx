@@ -26,10 +26,23 @@ const BADGE_COLORS: Record<string, PillColor> = {
   "Жінки-ветеранки": "rose",
   "Тільки УБД": "sand",
   "Можна з дітьми": "green",
+  "Окремі зони": "grey",
   "Поруч укриття": "grey",
   "18+": "rose",
   "Мікс": "grey",
 };
+
+/** Two slots beside the category pill — always reserve one for accessibility when tags exist. */
+function cardOverlayBadges(event: AppEvent): string[] {
+  const a11y = event.accessibilityLabels;
+  const core = event.badges.filter((b) => !a11y.includes(b));
+  if (a11y.length === 0) return core.slice(0, 2);
+  if (core.length === 0) return a11y.slice(0, 2);
+  const out: string[] = [core[0]!];
+  if (a11y[0]) out.push(a11y[0]);
+  else if (core[1]) out.push(core[1]);
+  return out.slice(0, 2);
+}
 
 // Map the 9 API categories onto the 3-color pin palette already in the
 // design (green/blue/amber). Anything we don't know about falls through
@@ -121,7 +134,7 @@ export function EventCardV2({
             <Pill color={CAT_PILL_COLOR[event.category] ?? "grey"}>
               {meta.label}
             </Pill>
-            {event.badges.slice(0, 2).map((b, i) => (
+            {cardOverlayBadges(event).map((b, i) => (
               <Pill key={`${b}-${i}`} color={BADGE_COLORS[b] ?? "grey"}>
                 {b}
               </Pill>

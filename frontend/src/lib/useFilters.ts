@@ -273,7 +273,29 @@ export function uiFiltersToApi(f: UiFilters): EventListFilters {
     out.date_to = to.toISOString();
   }
 
+  // Browse list / map should never show events that have already started.
+  // (`Saved` and other callers use `useEvents()` without these filters.)
+  mergeUpcomingStartsFloor(out);
+
   return out;
+}
+
+/**
+ * Clamp `date_from` so `starts_at >= now` (backend: `ListFilters.DateFrom`).
+ * If the user picked a range that starts in the past (e.g. earlier today or
+ * a historical custom range), we still only request upcoming occurrences.
+ */
+function mergeUpcomingStartsFloor(out: EventListFilters): void {
+  const now = Date.now();
+  const floorIso = new Date(now).toISOString();
+  if (!out.date_from) {
+    out.date_from = floorIso;
+    return;
+  }
+  const fromMs = new Date(out.date_from).getTime();
+  if (!Number.isFinite(fromMs) || fromMs < now) {
+    out.date_from = floorIso;
+  }
 }
 
 /**

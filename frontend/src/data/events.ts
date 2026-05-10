@@ -25,6 +25,8 @@ export interface AppEvent {
   time: string;
   /** Walking distance string. Empty when geolocation isn't available. */
   distance: string;
+  /** Human-readable accessibility tag labels (subset of `badges`, same order as API tags). */
+  accessibilityLabels: string[];
   badges: string[];
   /** Number of attendees so far (== `seats_taken`). */
   count: number;
