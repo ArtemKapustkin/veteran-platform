@@ -3,24 +3,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
-import { CloseIcon, PhoneIcon } from "@/components/icons";
+import { CheckIcon, CloseIcon, ShareIcon, TgIcon } from "@/components/icons";
 import type { AppEvent } from "@/data/events";
-import { ApiError } from "@/lib/api";
+import { ApiError, eventsApi, type RegistrationCompanion } from "@/lib/api";
 import { useEventsStore } from "@/lib/store";
 import { toast } from "@/lib/useToast";
 
-// Group-RSVP modal. Lets a registered veteran reserve 2..4 seats and
-// enter companion phone numbers; backend persists pending companion rows
-// and sends each phone an SMS invitation. The user themselves count as
-// one seat, so we collect `seats - 1` phones.
+// Group-RSVP modal. Two-step flow:
+//   1. Pick how many seats (2..4) — the user themselves count as one,
+//      so we'll generate `seats - 1` invitation tokens.
+//   2. After the backend reserves the group, render a Telegram share
+//      button per slot. The recipient claims the seat by opening the
+//      link, signing in, and POSTing /api/v1/invitations/{token}/claim.
 //
-// Phone format mirrors the backend rule in
-// `backend/internal/http_handler/validation_rules.go` (E.164):
-//   /^\+[1-9]\d{7,14}$/
+// We deliberately do NOT collect phone numbers — the backend used to
+// SMS each companion, but Telegram is the dominant channel for the
+// audience and the share-link flow lets the organizer pick the right
+// chat / group themselves.
 
-const E164 = /^\+[1-9]\d{7,14}$/;
 const SEAT_OPTIONS = [2, 3, 4] as const;
-const DEFAULT_PREFIX = "+380";
+type Seats = (typeof SEAT_OPTIONS)[number];
 
 interface GroupRegisterSheetProps {
   event: AppEvent;
@@ -31,22 +33,28 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
   const router = useRouter();
   const setRsvpGroup = useEventsStore((s) => s.setRsvpGroup);
 
-  const [seats, setSeats] = useState<2 | 3 | 4>(2);
-  // Keep the inputs sized to the max possible group so changing seats
-  // doesn't blow away what the user already typed.
-  const [phones, setPhones] = useState<string[]>([
-    DEFAULT_PREFIX,
-    DEFAULT_PREFIX,
-    DEFAULT_PREFIX,
-  ]);
-  const [errors, setErrors] = useState<(string | null)[]>([null, null, null]);
+  const [seats, setSeats] = useState<Seats>(2);
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  // Once the registration is created we move to the "share" step.
+  // Holding the registration id + companion tokens here (rather than
+  // re-reading the store) so the modal can present a stable list even
+  // if the store is reshaped underneath us.
+  const [reservation, setReservation] = useState<{
+    registrationId: string;
+    companions: RegistrationCompanion[];
+  } | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  const step: "reserve" | "share" = reservation ? "share" : "reserve";
+  const busy = submitting || cancelling;
+
   // Lock body scroll + Escape-to-close, standard for our dialogs.
+  // While the share view is open we still allow Escape so the organizer
+  // can dismiss after sharing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !submitting) onClose();
+      if (e.key === "Escape" && !busy) onClose();
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -55,104 +63,69 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [onClose, submitting]);
+  }, [onClose, busy]);
 
-  const visibleCount = seats - 1;
-
-  const trimmedPhones = useMemo(
-    () => phones.slice(0, visibleCount).map((p) => p.trim()),
-    [phones, visibleCount],
-  );
-
-  const validate = (): boolean => {
-    const next: (string | null)[] = [...errors];
-    let ok = true;
-    const seen = new Set<string>();
-    for (let i = 0; i < visibleCount; i++) {
-      const phone = trimmedPhones[i];
-      if (!phone || phone === DEFAULT_PREFIX) {
-        next[i] = "Введи номер у форматі +380…";
-        ok = false;
-      } else if (!E164.test(phone)) {
-        next[i] = "Невірний формат. Приклад: +380501234567";
-        ok = false;
-      } else if (seen.has(phone)) {
-        next[i] = "Номер уже у списку";
-        ok = false;
-      } else {
-        next[i] = null;
-        seen.add(phone);
-      }
-    }
-    setErrors(next);
-    return ok;
-  };
-
-  const handleSubmit = async () => {
-    if (submitting) return;
-    if (!validate()) return;
+  const handleReserve = async () => {
+    if (busy) return;
     setSubmitting(true);
     try {
-      await setRsvpGroup(event.id, seats, trimmedPhones);
-      toast.success(
-        "Запросили побратимів",
-        "Чекаємо їхнього підтвердження — місця заброньовані на 24 години.",
-      );
-      onClose();
-      // Land the user on the full event page so they see the "Ти йдеш"
-      // confirmation card right away (matches solo RSVP behaviour).
-      router.push(`/events/${event.id}`);
+      const reg = await setRsvpGroup(event.id, seats);
+      setReservation({
+        registrationId: reg.id,
+        companions: reg.companions ?? [],
+      });
     } catch (e) {
-      if (e instanceof ApiError) {
-        // Field-level errors come back keyed by struct field name.
-        // Backend uses "companion_phones" for the array; per-row errors
-        // can land as "companion_phones[0]" etc. — fall back to a toast
-        // when we can't pinpoint the row.
-        if (e.code === "validation_error" && e.details) {
-          const next: (string | null)[] = [...errors];
-          let mapped = false;
-          for (const [key, msg] of Object.entries(e.details)) {
-            const m = key.match(/companion_phones(?:\[(\d+)\])?/);
-            if (m) {
-              const idx = m[1] ? Number(m[1]) : 0;
-              if (idx < visibleCount) {
-                next[idx] = String(msg);
-                mapped = true;
-              }
-            }
-          }
-          if (mapped) {
-            setErrors(next);
-            return;
-          }
-        }
-        toast.error("Не вдалось записатись", e.message);
-      } else {
-        toast.error("Не вдалось записатись", (e as Error).message);
-      }
+      const msg = e instanceof ApiError ? e.message : (e as Error).message;
+      toast.error("Не вдалось забронювати", msg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const updatePhone = (idx: number, value: string) => {
-    setPhones((prev) => {
-      const next = [...prev];
-      next[idx] = value;
-      return next;
-    });
-    setErrors((prev) => {
-      const next = [...prev];
-      next[idx] = null;
-      return next;
-    });
+  // "Cancel reservation" from the share step: drop the group entirely
+  // so the seats go back to the quota. We surface this so an organizer
+  // who picked too many seats isn't stuck waiting 24h for the TTL.
+  const handleCancelReservation = async () => {
+    if (!reservation || busy) return;
+    setCancelling(true);
+    try {
+      await eventsApi.cancelRegistration(event.id, reservation.registrationId);
+      // Mirror what useEventsStore.setRsvp(false) does — drop the local
+      // RSVP entry so the heart / "Ти йдеш" cards reset immediately.
+      useEventsStore.setState((s) => {
+        const next = { ...s.registrations };
+        delete next[event.id];
+        return {
+          rsvpIds: s.rsvpIds.filter((x) => x !== event.id),
+          registrations: next,
+        };
+      });
+      toast.info("Бронювання скасовано", "Місця знову у загальній квоті.");
+      onClose();
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : (e as Error).message;
+      toast.error("Не вдалось скасувати", msg);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleDone = () => {
+    if (!reservation) {
+      onClose();
+      return;
+    }
+    onClose();
+    // Land the user on the full event page so they see the "Ти йдеш"
+    // confirmation card right away (matches solo RSVP behaviour).
+    router.push(`/events/${event.id}`);
   };
 
   return (
     <div
       role="presentation"
       onClick={() => {
-        if (!submitting) onClose();
+        if (!busy) onClose();
       }}
       className="fixed inset-0 z-[105] flex items-end justify-center sm:items-center sm:px-4 sm:py-6"
       style={{ background: "rgba(20,18,15,0.46)" }}
@@ -174,7 +147,7 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
         <button
           type="button"
           onClick={onClose}
-          disabled={submitting}
+          disabled={busy}
           aria-label="Закрити"
           className="text-text2 hover:text-text absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-50"
         >
@@ -191,145 +164,302 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
             lineHeight: 1.25,
           }}
         >
-          Запросити побратима
+          {step === "reserve" ? "Запросити побратима" : "Запрошення готові"}
         </h2>
         <p
           className="text-text2 mt-2 mb-0"
           style={{ fontSize: 13.5, lineHeight: 1.5 }}
         >
-          Бронюємо до 4 місць на «{event.title}». Ми надішлемо SMS-запрошення —
-          у них буде 24 години, щоб підтвердити.
+          {step === "reserve" ? (
+            <>
+              Бронюємо до 4 місць на «{event.title}». Створимо
+              посилання-запрошення — поділись ними у Telegram. У побратимів
+              буде 24 години, щоб приєднатись.
+            </>
+          ) : (
+            <>
+              Місця заброньовано на «{event.title}». Поділись посиланням з
+              кожним побратимом у Telegram. Якщо ніхто не приєднається за 24
+              години — місця звільняться автоматично.
+            </>
+          )}
         </p>
 
-        <fieldset className="mt-5 flex flex-col gap-2.5" disabled={submitting}>
-          <legend
-            className="text-text-muted mb-1.5 block px-0"
-            style={{
-              fontSize: 11.5,
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-            }}
-          >
-            Скільки місць
-          </legend>
-          <div
-            role="radiogroup"
-            aria-label="Кількість місць"
-            className="border-border flex w-full overflow-hidden rounded-[10px] border bg-white"
-          >
-            {SEAT_OPTIONS.map((n) => {
-              const on = seats === n;
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => setSeats(n)}
-                  className="flex-1 px-3 py-2.5 transition-colors"
-                  style={{
-                    background: on ? "var(--color-primary)" : "transparent",
-                    color: on ? "#fff" : "var(--color-text)",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    letterSpacing: "-0.005em",
-                  }}
-                >
-                  {n} місця
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-text2 m-0" style={{ fontSize: 12 }}>
-            Ти займаєш одне місце; інші — для побратимів.
-          </p>
-        </fieldset>
+        {step === "reserve" ? (
+          <ReserveStep
+            seats={seats}
+            onSeatsChange={setSeats}
+            submitting={submitting}
+            onSubmit={handleReserve}
+            onCancel={onClose}
+          />
+        ) : (
+          <ShareStep
+            event={event}
+            companions={reservation!.companions}
+            cancelling={cancelling}
+            onCancelReservation={handleCancelReservation}
+            onDone={handleDone}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
-        <div className="mt-5 flex flex-col gap-3">
-          <div
-            className="text-text-muted block"
-            style={{
-              fontSize: 11.5,
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-            }}
-          >
-            Телефони побратимів
-          </div>
-          {Array.from({ length: visibleCount }).map((_, i) => {
-            const inputId = `group-phone-${i}`;
-            const err = errors[i];
+interface ReserveStepProps {
+  seats: Seats;
+  onSeatsChange: (s: Seats) => void;
+  submitting: boolean;
+  onSubmit: () => void;
+  onCancel: () => void;
+}
+
+function ReserveStep({
+  seats,
+  onSeatsChange,
+  submitting,
+  onSubmit,
+  onCancel,
+}: ReserveStepProps) {
+  return (
+    <>
+      <fieldset className="mt-5 flex flex-col gap-2.5" disabled={submitting}>
+        <legend
+          className="text-text-muted mb-1.5 block px-0"
+          style={{
+            fontSize: 11.5,
+            fontWeight: 600,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          Скільки місць
+        </legend>
+        <div
+          role="radiogroup"
+          aria-label="Кількість місць"
+          className="border-border flex w-full overflow-hidden rounded-[10px] border bg-white"
+        >
+          {SEAT_OPTIONS.map((n) => {
+            const on = seats === n;
             return (
-              <div key={i} className="flex flex-col gap-1">
-                <label
-                  htmlFor={inputId}
-                  className="text-text2"
-                  style={{ fontSize: 12.5, fontWeight: 500 }}
-                >
-                  Побратим #{i + 1}
-                </label>
-                <div className="relative">
-                  <span
-                    aria-hidden
-                    className="text-text-muted absolute left-3 top-1/2 -translate-y-1/2"
-                  >
-                    <PhoneIcon size={16} />
-                  </span>
-                  <input
-                    id={inputId}
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    value={phones[i] ?? ""}
-                    onChange={(e) => updatePhone(i, e.target.value)}
-                    placeholder="+380501234567"
-                    aria-invalid={err ? true : undefined}
-                    aria-describedby={err ? `${inputId}-err` : undefined}
-                    disabled={submitting}
-                    className="border-border focus:border-primary text-text w-full rounded-[10px] border bg-white py-2.5 pl-9 pr-3.5 outline-none transition-colors placeholder:text-[var(--color-text-muted)] disabled:opacity-60"
-                    style={{
-                      fontSize: 14,
-                      borderColor: err ? "#C04848" : undefined,
-                    }}
-                  />
-                </div>
-                {err ? (
-                  <p
-                    id={`${inputId}-err`}
-                    className="m-0"
-                    style={{ color: "#C04848", fontSize: 12 }}
-                  >
-                    {err}
-                  </p>
-                ) : null}
-              </div>
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => onSeatsChange(n)}
+                className="flex-1 px-3 py-2.5 transition-colors"
+                style={{
+                  background: on ? "var(--color-primary)" : "transparent",
+                  color: on ? "#fff" : "var(--color-text)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  letterSpacing: "-0.005em",
+                }}
+              >
+                {n} місця
+              </button>
             );
           })}
         </div>
+        <p className="text-text2 m-0" style={{ fontSize: 12 }}>
+          Ти займаєш одне місце; інші — для побратимів.
+        </p>
+      </fieldset>
 
-        <div className="mt-6 flex flex-col gap-2">
-          <Btn
-            kind="primary"
-            size="lg"
-            fullWidth
-            loading={submitting}
-            onClick={handleSubmit}
+      <div className="mt-6 flex flex-col gap-2">
+        <Btn
+          kind="primary"
+          size="lg"
+          fullWidth
+          loading={submitting}
+          onClick={onSubmit}
+        >
+          Створити запрошення
+        </Btn>
+        <Btn
+          kind="ghost"
+          size="md"
+          fullWidth
+          onClick={onCancel}
+          disabled={submitting}
+        >
+          Скасувати
+        </Btn>
+      </div>
+    </>
+  );
+}
+
+interface ShareStepProps {
+  event: AppEvent;
+  companions: RegistrationCompanion[];
+  cancelling: boolean;
+  onCancelReservation: () => void;
+  onDone: () => void;
+}
+
+function ShareStep({
+  event,
+  companions,
+  cancelling,
+  onCancelReservation,
+  onDone,
+}: ShareStepProps) {
+  // Build the share message once per event — it's a function of the
+  // event title only and doesn't depend on which slot we're sharing.
+  const shareText = useMemo(
+    () =>
+      `Привіт! Запрошую тебе на «${event.title}». Натисни посилання, щоб приєднатись до групи — місце для тебе вже заброньовано:`,
+    [event.title],
+  );
+
+  return (
+    <div className="mt-5 flex flex-col gap-3">
+      <div
+        className="text-text-muted block"
+        style={{
+          fontSize: 11.5,
+          fontWeight: 600,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+        }}
+      >
+        Посилання-запрошення
+      </div>
+
+      {companions.length === 0 ? (
+        <p className="text-text2 m-0" style={{ fontSize: 13 }}>
+          Запрошення не створено.
+        </p>
+      ) : (
+        companions.map((c, i) => (
+          <CompanionShareRow
+            key={c.id}
+            index={i + 1}
+            companion={c}
+            shareText={shareText}
+          />
+        ))
+      )}
+
+      <div className="mt-3 flex flex-col gap-2">
+        <Btn kind="primary" size="lg" fullWidth onClick={onDone}>
+          Готово
+        </Btn>
+        <Btn
+          kind="ghost"
+          size="md"
+          fullWidth
+          loading={cancelling}
+          onClick={onCancelReservation}
+        >
+          Скасувати бронювання
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+interface CompanionShareRowProps {
+  index: number;
+  companion: RegistrationCompanion;
+  shareText: string;
+}
+
+function CompanionShareRow({
+  index,
+  companion,
+  shareText,
+}: CompanionShareRowProps) {
+  const [copied, setCopied] = useState(false);
+
+  // Build the absolute URL on the client so we don't need the backend
+  // to know about the SPA origin (mobile preview, dev tunnels, etc.).
+  // SSR would render an empty string; we only use this in event
+  // handlers / labels rendered client-side.
+  const shareUrl = useMemo(() => {
+    if (typeof window === "undefined" || !companion.invite_token) return "";
+    return `${window.location.origin}/invitations/${encodeURIComponent(companion.invite_token)}`;
+  }, [companion.invite_token]);
+
+  const tgHref = useMemo(() => {
+    if (!shareUrl) return "";
+    const u = encodeURIComponent(shareUrl);
+    const t = encodeURIComponent(shareText);
+    return `https://t.me/share/url?url=${u}&text=${t}`;
+  }, [shareUrl, shareText]);
+
+  const claimed = companion.status === "confirmed";
+
+  const handleCopy = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error("Не вдалось скопіювати", "Спробуй вручну з адресного рядка.");
+    }
+  };
+
+  return (
+    <div className="border-border-soft flex flex-col gap-2 rounded-[10px] border bg-white px-3.5 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-text2" style={{ fontSize: 12.5, fontWeight: 500 }}>
+          Побратим #{index}
+        </span>
+        {claimed ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5"
+            style={{
+              background: "#E8F6EF",
+              color: "#0E6E45",
+              fontSize: 11.5,
+              fontWeight: 600,
+            }}
           >
-            Надіслати запрошення
+            <CheckIcon size={12} />
+            Прийнято
+          </span>
+        ) : null}
+      </div>
+
+      <div
+        className="text-text2 truncate rounded-[8px] bg-[var(--color-bg)] px-2.5 py-1.5"
+        style={{ fontSize: 12, fontFamily: "ui-monospace, monospace" }}
+        title={shareUrl}
+      >
+        {shareUrl || "—"}
+      </div>
+
+      {claimed ? null : (
+        <div className="flex flex-wrap gap-2">
+          <Btn
+            kind="tg"
+            size="sm"
+            icon={<TgIcon size={15} />}
+            asLink
+            className="flex-1"
+            onClick={() => {
+              if (!tgHref) return;
+              window.open(tgHref, "_blank", "noopener,noreferrer");
+            }}
+          >
+            Поділитись у Telegram
           </Btn>
           <Btn
-            kind="ghost"
-            size="md"
-            fullWidth
-            onClick={onClose}
-            disabled={submitting}
+            kind="secondary"
+            size="sm"
+            icon={<ShareIcon size={15} />}
+            onClick={handleCopy}
           >
-            Скасувати
+            {copied ? "Скопійовано" : "Копіювати"}
           </Btn>
         </div>
-      </div>
+      )}
     </div>
   );
 }

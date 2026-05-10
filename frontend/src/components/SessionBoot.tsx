@@ -8,15 +8,12 @@ import {
   refreshMe,
   useAuthStore,
 } from "@/lib/store";
-import { useInvitationsStore } from "@/lib/useInvitations";
 
 /**
  * Runs once on the client after Zustand has rehydrated from localStorage.
  * Pulls a fresh `/me` (so a server-side block / verification update lands
- * in the UI), re-syncs the registrations cache, and loads any pending
- * group-event invitations so the account section + event-detail banner
- * render with data on first paint. Each call silently no-ops when the
- * user isn't authenticated.
+ * in the UI) and re-syncs the registrations cache. Each call silently
+ * no-ops when the user isn't authenticated.
  *
  * Also enforces the verification gate: a session that's no longer
  * `ok` (account got blocked, status revoked, never finished verification)
@@ -29,14 +26,10 @@ export function SessionBoot() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!accessToken) {
-      useInvitationsStore.getState().reset();
-      return;
-    }
+    if (!accessToken) return;
     void (async () => {
       const veteran = await refreshMe();
       void hydrateMyRegistrations();
-      void useInvitationsStore.getState().hydrate();
 
       // Gate check after `/me` lands so we react to admin-side changes
       // (block, revoke, manual approval) on app reload.

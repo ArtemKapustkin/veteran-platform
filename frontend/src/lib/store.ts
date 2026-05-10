@@ -226,17 +226,14 @@ interface EventsState {
   setRsvp: (eventId: string, on: boolean) => Promise<void>;
 
   /**
-   * Group-register for an event with `seats` (2..4) and `companion_phones`
-   * (length must equal `seats - 1`, E.164 format). Backend triggers SMS
-   * invitations for each companion. Resolves with the created
-   * Registration so callers can route / confirm. Throws ApiError on
-   * validation / quota / auth failures.
+   * Group-register for an event with `seats` (2..4). Backend reserves
+   * the full group of seats and returns one `invite_token` per
+   * companion slot under `registration.companions`; the caller is
+   * expected to surface those as Telegram share links. Resolves with
+   * the created Registration so the modal can render the share
+   * buttons; throws ApiError on quota / auth failures.
    */
-  setRsvpGroup: (
-    eventId: string,
-    seats: number,
-    companionPhones: string[],
-  ) => Promise<Registration>;
+  setRsvpGroup: (eventId: string, seats: number) => Promise<Registration>;
 
   /**
    * Inject a Registration into the cache (e.g. after the recipient
@@ -317,7 +314,7 @@ export const useEventsStore = create<EventsState>()(
         }
       },
 
-      setRsvpGroup: async (eventId, seats, companionPhones) => {
+      setRsvpGroup: async (eventId, seats) => {
         const auth = useAuthStore.getState();
         if (!auth.isAuthenticated()) {
           throw new ApiError(401, {
@@ -325,10 +322,7 @@ export const useEventsStore = create<EventsState>()(
             message: "Увійди, щоб записатись на подію",
           });
         }
-        const reg = await eventsApi.register(eventId, {
-          seats,
-          companion_phones: companionPhones,
-        });
+        const reg = await eventsApi.register(eventId, { seats });
         set((s) => ({
           rsvpIds: Array.from(new Set([...s.rsvpIds, eventId])),
           registrations: { ...s.registrations, [eventId]: reg },

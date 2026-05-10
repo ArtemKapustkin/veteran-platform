@@ -2,8 +2,6 @@ import { api } from "./client";
 import type {
   AudienceStatus,
   ApiEventCategory,
-  Invitation,
-  Registration,
   RegistrationPage,
   RegistrationStatus,
   Veteran,
@@ -29,13 +27,4 @@ export const meApi = {
     limit?: number;
     cursor?: string;
   }) => api.get<RegistrationPage>("/api/v1/me/registrations", params),
-
-  invitations: () =>
-    api.get<{ items: Invitation[] }>("/api/v1/me/invitations"),
-
-  confirmInvitation: (invitationId: string) =>
-    api.post<Registration>(`/api/v1/me/invitations/${invitationId}/confirm`),
-
-  declineInvitation: (invitationId: string) =>
-    api.post<Registration>(`/api/v1/me/invitations/${invitationId}/decline`),
 };

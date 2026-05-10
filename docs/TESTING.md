@@ -279,28 +279,26 @@ curl -sS -X DELETE -H "Authorization: Bearer $VET_TOKEN" \
 ORG_RESP=$(login_auto +380500000002)
 ORG_TOKEN=$(echo "$ORG_RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 
-COMP_PHONE='+380500000003'   # Олена in seed
-
-# Organizer creates 2-seat group inviting Олена
+# Organizer creates 2-seat group; backend issues 1 invite token
 GROUP=$(curl -sS -X POST -H "Authorization: Bearer $ORG_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"seats\":2,\"companion_phones\":[\"$COMP_PHONE\"]}" \
+  -d "{\"seats\":2}" \
   http://localhost:8088/api/v1/events/$PUB_EVENT/registrations)
 GROUP_ID=$(echo "$GROUP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+INV_TOKEN=$(echo "$GROUP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["companions"][0]["invite_token"])')
 echo "$GROUP" | python3 -c 'import sys,json;d=json.load(sys.stdin);print("status:",d["status"],"reservation_expires_at:",d["reservation_expires_at"][:19])'
-# pending_companions, +24h
+# pending_companions, +24h. Share https://app/invitations/$INV_TOKEN via Telegram.
 
-# Олена signs in and sees the invitation
-COMP_RESP=$(login_auto $COMP_PHONE)
+# Public preview (no auth needed) — what the landing page renders
+curl -sS http://localhost:8088/api/v1/invitations/$INV_TOKEN \
+  | python3 -c 'import sys,json;d=json.load(sys.stdin);print("event:",d["event"]["title"],"by",d["invited_by_fullname"])'
+
+# Olена signs in and claims the slot via the link
+COMP_RESP=$(login_auto +380500000003)
 COMP_TOKEN=$(echo "$COMP_RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 
-INV_ID=$(curl -sS -H "Authorization: Bearer $COMP_TOKEN" \
-  http://localhost:8088/api/v1/me/invitations \
-  | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["items"][0]["id"])')
-
-# Confirm
 curl -sS -X POST -H "Authorization: Bearer $COMP_TOKEN" \
-  http://localhost:8088/api/v1/me/invitations/$INV_ID/confirm \
+  http://localhost:8088/api/v1/invitations/$INV_TOKEN/claim \
   | python3 -c 'import sys,json;d=json.load(sys.stdin);print("reg status:",d["status"])'
 # confirmed (since 1 of 1 companion confirmed)
 
@@ -314,13 +312,11 @@ curl -sS -X DELETE -H "Authorization: Bearer $ORG_TOKEN" \
 
 GROUP=$(curl -sS -X POST -H "Authorization: Bearer $ORG_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"seats\":2,\"companion_phones\":[\"$COMP_PHONE\"]}" \
+  -d "{\"seats\":2}" \
   http://localhost:8088/api/v1/events/$PUB_EVENT/registrations)
-INV_ID=$(curl -sS -H "Authorization: Bearer $COMP_TOKEN" \
-  http://localhost:8088/api/v1/me/invitations \
-  | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["items"][0]["id"])')
+INV_TOKEN=$(echo "$GROUP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["companions"][0]["invite_token"])')
 curl -sS -X POST -H "Authorization: Bearer $COMP_TOKEN" \
-  http://localhost:8088/api/v1/me/invitations/$INV_ID/decline \
+  http://localhost:8088/api/v1/invitations/$INV_TOKEN/decline \
   | python3 -c 'import sys,json;d=json.load(sys.stdin);print("reg after decline:",d["status"])'
 # cancelled
 ```
@@ -331,7 +327,7 @@ curl -sS -X POST -H "Authorization: Bearer $COMP_TOKEN" \
 # Create a group, then backdate the reservation in the DB
 GROUP_ID=$(curl -sS -X POST -H "Authorization: Bearer $ORG_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"seats\":2,\"companion_phones\":[\"+380500000099\"]}" \
+  -d "{\"seats\":2}" \
   http://localhost:8088/api/v1/events/$PUB_EVENT/registrations \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
 

@@ -1,6 +1,7 @@
 export { api, apiBaseUrl, ApiError, setTokenProvider } from "./client";
 export { authApi } from "./auth";
 export { eventsApi } from "./events";
+export { invitationsApi } from "./invitations";
 export { meApi } from "./me";
 export { communitiesApi } from "./communities";
 export { referenceApi } from "./reference";

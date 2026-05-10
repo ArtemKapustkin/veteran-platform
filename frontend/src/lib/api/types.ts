@@ -162,7 +162,14 @@ export interface ApiEvent {
 
 export interface RegistrationCompanion {
   id: string;
-  phone: string;
+  /**
+   * URL-safe one-time token. Returned only on the organizer's view of
+   * their own registration; combine with the SPA origin to build the
+   * Telegram share URL: `${origin}/invitations/${invite_token}`.
+   */
+  invite_token?: string | null;
+  /** Legacy SMS-flow phone, null on tokens-only rows. */
+  phone?: string | null;
   veteran_id?: string | null;
   fullname?: string | null;
   status: "pending" | "confirmed" | "declined";
@@ -237,20 +244,23 @@ export interface CommunityPage {
   pagination: Pagination;
 }
 
-export interface Invitation {
-  id: string;
+// Public preview returned by `GET /api/v1/invitations/{token}`. Used
+// by the share-link landing page so it can render an event card and a
+// "Join the group" CTA before (or after) sign-in.
+export interface InvitationLookup {
+  token: string;
   registration_id: string;
   event: ApiEvent;
   invited_by_fullname?: string | null;
-  invited_by_phone: string;
   seats_in_group: number;
   reservation_expires_at: string;
   status: "pending" | "confirmed" | "declined";
+  /** True when the calling veteran already claimed this slot. */
+  already_claimed_by_me?: boolean;
 }
 
 export interface RegistrationCreate {
   seats: number;
-  companion_phones?: string[];
 }
 
 // Filters used by the public events list. Mirrors `GET /api/v1/events`

@@ -163,43 +163,56 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RegistrationPage' }
 
-  /api/v1/me/invitations:
+  # ─────────────────────────────── INVITATIONS ───────────────────────────────
+  /api/v1/invitations/{token}:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
     get:
-      tags: [Me, Invitations]
-      summary: Pending group-registration invitations addressed to my phone
+      tags: [Invitations]
+      summary: Public preview of a Telegram-share invitation
+      description: |
+        Anonymous-friendly so the landing page can render before sign-in.
+        When the request includes a valid bearer token, the response also
+        sets `already_claimed_by_me=true` if the caller has already
+        confirmed this slot.
+      security:
+        - {}
+        - bearerAuth: []
       responses:
         '200':
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  items: { type: array, items: { $ref: '#/components/schemas/Invitation' } }
+              schema: { $ref: '#/components/schemas/InvitationLookup' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
-  /api/v1/me/invitations/{invitation_id}/confirm:
+  /api/v1/invitations/{token}/claim:
     parameters:
-      - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: token, in: path, required: true, schema: { type: string } }
     post:
       tags: [Invitations]
-      summary: Confirm participation in a group registration I was invited to
+      summary: Claim the seat held by this invitation token
       description: |
-        Fails with 409 if the invitation TTL has elapsed or the registration was
-        already cancelled. Fails with 403 if the event is verified-only and the
-        confirming veteran is not yet verified.
+        Anyone with the link can claim — the link is the credential.
+        Idempotent for the same caller: re-claiming a slot you already
+        confirmed returns the current registration. Fails with 409 if
+        the slot was already used by someone else, the registration TTL
+        elapsed, or the caller already has another active registration
+        for the same event. Fails with 403 if the event is verified-only
+        and the caller isn't a verified veteran.
       responses:
         '200':
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Registration' }
         '403': { description: Verified-only event and caller is not verified }
-        '409': { description: Invitation expired or registration cancelled }
+        '409': { description: Invitation expired or already used }
 
-  /api/v1/me/invitations/{invitation_id}/decline:
+  /api/v1/invitations/{token}/decline:
     parameters:
-      - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: token, in: path, required: true, schema: { type: string } }
     post:
       tags: [Invitations]
-      summary: Decline invitation — releases all reserved seats for the group
+      summary: Decline this invitation — releases all seats in the group
       responses:
         '200':
           content:
