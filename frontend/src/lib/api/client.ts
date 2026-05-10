@@ -12,10 +12,19 @@
 
 import type { ApiErrorBody } from "./types";
 
-const DEFAULT_BASE_URL = "http://localhost:8088";
+// Per-environment defaults so a production build that wasn't given an explicit
+// `NEXT_PUBLIC_API_BASE_URL` still hits the deployed Cloud Run backend instead
+// of accidentally pointing at localhost. Dev keeps the local fasthttp port.
+const DEV_DEFAULT_BASE_URL = "http://localhost:8088";
+const PROD_DEFAULT_BASE_URL =
+  "https://veteran-platform-backend-136148031564.europe-west3.run.app";
 
 export function apiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_BASE_URL;
+  const explicit = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (explicit) return explicit;
+  return process.env.NODE_ENV === "production"
+    ? PROD_DEFAULT_BASE_URL
+    : DEV_DEFAULT_BASE_URL;
 }
 
 export class ApiError extends Error {
