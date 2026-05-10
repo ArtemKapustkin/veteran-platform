@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Avatar } from "@/components/atoms/Avatar";
 import { UserIcon } from "@/components/icons";
@@ -44,22 +45,18 @@ export function AppHeader() {
     <div className="flex items-center justify-between px-4 py-2">
       <Link
         href="/map"
-        className="flex items-center gap-2 outline-none"
+        className="flex items-center outline-none"
         aria-label="Свої поруч — на головну"
       >
-        <span
-          aria-hidden
-          className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#1A1A1A] text-white"
-          style={{ fontSize: 13, fontWeight: 700, letterSpacing: "-0.02em" }}
-        >
-          сп
-        </span>
-        <span
-          className="text-text"
-          style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          Свої поруч
-        </span>
+        <Image
+          src="/logo.png"
+          alt="Свої поруч"
+          width={500}
+          height={120}
+          priority
+          sizes="140px"
+          style={{ height: 28, width: "auto" }}
+        />
       </Link>
 
       {isLoggedIn ? (

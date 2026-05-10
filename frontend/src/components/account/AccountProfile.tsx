@@ -71,6 +71,7 @@ export function AccountProfile() {
   const joinedLabel = veteran?.created_at
     ? `з ${formatJoined(veteran.created_at)}`
     : "";
+  const isAdmin = role === "admin";
 
   const statusLabel =
     role === "admin"
@@ -134,6 +135,8 @@ export function AccountProfile() {
         </div>
 
         <div className="flex flex-col gap-10">
+          {isAdmin ? <AdminToolsCard /> : null}
+
           {pendingInvitations.length > 0 ? (
             <Section
               title="Запрошення"
@@ -260,6 +263,48 @@ function EmptyHint({ children }: { children: ReactNode }) {
       style={{ fontSize: 13, lineHeight: 1.5 }}
     >
       {children}
+    </div>
+  );
+}
+
+function AdminToolsCard() {
+  return (
+    <div
+      className="border-border-soft flex items-start gap-4 rounded-2xl border bg-white px-5 py-5"
+    >
+      <div
+        aria-hidden
+        className="bg-[#1A1A1A] text-white flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl"
+        style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.04em" }}
+      >
+        АДМ
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div
+          className="text-text"
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Адмін-панель
+        </div>
+        <div className="text-text2" style={{ fontSize: 13, lineHeight: 1.5 }}>
+          Модерація і керування подіями: створення, редагування, видалення.
+        </div>
+        <Link
+          href="/admin/events"
+          className="bg-primary mt-3 inline-flex h-10 items-center self-start rounded-[10px] px-4 text-white shadow-[0_1px_2px_rgba(31,77,52,0.22)] hover:brightness-[1.04] active:brightness-95"
+          style={{
+            fontSize: 13.5,
+            fontWeight: 600,
+            letterSpacing: "-0.005em",
+          }}
+        >
+          Події
+        </Link>
+      </div>
     </div>
   );
 }

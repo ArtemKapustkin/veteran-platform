@@ -275,15 +275,6 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
         ) : (
           <div className="flex flex-col gap-2.5">
             <Btn
-              kind="primary"
-              size="lg"
-              fullWidth
-              loading={rsvpPending}
-              onClick={() => handleRsvp(true)}
-            >
-              Зареєструватись на подію
-            </Btn>
-            <Btn
               kind="secondary"
               size="lg"
               fullWidth
@@ -291,6 +282,15 @@ export function EventDetailScreen({ event }: { event: AppEvent }) {
               onClick={openGroup}
             >
               Запросити побратима
+            </Btn>
+            <Btn
+              kind="primary"
+              size="lg"
+              fullWidth
+              loading={rsvpPending}
+              onClick={() => handleRsvp(true)}
+            >
+              Зареєструватись на подію
             </Btn>
           </div>
         )}

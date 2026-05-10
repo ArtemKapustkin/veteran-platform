@@ -284,6 +284,47 @@ export interface EventCreatePayload {
   community_id?: string | null;
   location?: Location;
   cover_image_url?: string;
+  /** Admin-only: lets the create call publish or draft directly. Ignored
+   *  for veteran callers (backend forces `pending_approval`). */
+  status?: EventStatus;
+}
+
+// Admin PATCH payload — every field optional. Mirrors the Go
+// `updateEventReq` struct in `admin_event_handler.go`. Sending
+// `accessibility_tags: []` clears the tags; omitting the key leaves them
+// untouched (the backend uses presence detection on the JSON key).
+export interface EventUpdatePayload {
+  category?: ApiEventCategory;
+  title?: string;
+  description?: string;
+  quota?: number;
+  starts_at?: string;
+  ends_at?: string | null;
+  format?: EventFormat;
+  repeat?: EventRepeat;
+  for_whom?: ForWhom;
+  cost?: EventCost;
+  accessibility_tags?: AccessibilityTag[];
+  verified_only?: boolean;
+  community_id?: string | null;
+  location?: Location;
+  cover_image_url?: string | null;
+}
+
+// Admin filters — superset of the public filters, plus visibility into
+// non-published statuses and the creator role. `q` and `community_id`
+// are shared with the public list. Date/cost-tier/etc. filters are
+// intentionally omitted: the admin queue already paginates everything,
+// so the moderator can scroll instead of constructing complex queries.
+export interface AdminEventListFilters {
+  category?: ApiEventCategory[];
+  status?: EventStatus[];
+  created_by?: "admin" | "veteran";
+  community_id?: string;
+  q?: string;
+  sort?: "date_asc" | "date_desc" | "quota_remaining";
+  limit?: number;
+  cursor?: string;
 }
 
 export interface ApiErrorBody {

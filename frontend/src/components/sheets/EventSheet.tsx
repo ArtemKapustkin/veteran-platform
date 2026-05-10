@@ -25,16 +25,20 @@ import type { AppEvent } from "@/data/events";
 
 // Snap heights as a fraction of the dialog container (the map view).
 //   closed   → trigger onClose
-//   default  → 58% of viewport (matches the original static layout)
-//   full     → 96% (leaves a sliver of map at the top so it doesn't feel
-//              like a full-screen takeover)
-const SNAP_DEFAULT = 0.58;
+//   default  → ~62% of viewport, sized to fit the "preview" content
+//              (tags + title + meta + who's going + CTA) without
+//              scrolling on typical phone heights. The sheet stays at
+//              this height on open and only grows when the user drags.
+//   full     → 96% (leaves a sliver of map at the top so it doesn't
+//              feel like a full-screen takeover). Reveals the cover
+//              photo + description.
+const SNAP_DEFAULT = 0.62;
 const SNAP_FULL = 0.96;
 // Boundaries used when deciding which snap to settle on after a drag,
 // expressed as fractions of the container height.
 const CLOSE_BOUNDARY = 0.32;
-const EXPAND_BOUNDARY = 0.78;
-// Velocity bias — quick flicks "wins" the snap in the flick direction
+const EXPAND_BOUNDARY = 0.8;
+// Velocity bias — quick flicks "win" the snap in the flick direction
 // even if the position is closer to the previous snap. px / ms.
 const FLICK_VELOCITY = 0.5;
 
@@ -78,9 +82,11 @@ export function EventSheet({
     return () => ro.disconnect();
   }, []);
 
-  // Resolved height for the current snap, minus any drag delta. Clamped to
-  // [0, SNAP_FULL] so the sheet never grows past the cap or below zero.
-  const baseHeightPx = containerH * (snap === "full" ? SNAP_FULL : SNAP_DEFAULT);
+  // Resolved height for the current snap, minus any drag delta. Clamped
+  // to [0, SNAP_FULL] so the sheet never grows past the cap or below
+  // zero.
+  const baseHeightPx =
+    containerH * (snap === "full" ? SNAP_FULL : SNAP_DEFAULT);
   const sheetHeightPx = Math.min(
     containerH * SNAP_FULL,
     Math.max(0, baseHeightPx - dragDelta),
@@ -154,11 +160,20 @@ export function EventSheet({
     [containerH, onClose, sheetHeightPx, snap],
   );
 
-  // While dragging we want instant follow; when we release we want a
-  // smooth snap. Apply via inline style so we don't trigger a CSS reflow
-  // every frame.
+  // Render height policy:
+  //  • default snap, not dragging → CSS percentage (rock-solid: same
+  //    declared value on every render, so the browser never animates
+  //    on open). The sheet sits exactly at SNAP_DEFAULT and only moves
+  //    when the user grabs the handle.
+  //  • dragging or full snap → pixel value (needed for live drag math
+  //    and for the transition between snaps).
+  // Switching from % to px happens at the same moment we set transition
+  // to "none" (drag start), so no animation fires across the unit change.
+  const useDefaultPercent = !isDragging && snap === "default";
   const sheetStyle: CSSProperties = {
-    height: containerH > 0 ? sheetHeightPx : `${SNAP_DEFAULT * 100}%`,
+    height: useDefaultPercent
+      ? `${SNAP_DEFAULT * 100}%`
+      : `${sheetHeightPx}px`,
     boxShadow: "var(--shadow-sheet)",
     transition: isDragging
       ? "none"
@@ -182,7 +197,9 @@ export function EventSheet({
         onClick={onClose}
         className="absolute inset-x-0 top-0 w-full cursor-default bg-transparent"
         style={{
-          height: `calc(100% - ${sheetHeightPx}px)`,
+          height: useDefaultPercent
+            ? `${(1 - SNAP_DEFAULT) * 100}%`
+            : `calc(100% - ${sheetHeightPx}px)`,
           transition: isDragging
             ? "none"
             : "height 260ms cubic-bezier(0.4, 0, 0.2, 1)",
@@ -220,13 +237,15 @@ export function EventSheet({
           />
         </div>
         <div className="flex flex-1 flex-col gap-3.5 overflow-auto px-5 pt-1.5 pb-5.5 overscroll-contain">
-          <Photo
-            tone={event.coverTone}
-            height={140}
-            radius={14}
-            label="EVENT · COVER"
-            alt={`Обкладинка події «${event.title}»`}
-          />
+          {snap === "full" ? (
+            <Photo
+              tone={event.coverTone}
+              height={140}
+              radius={14}
+              label="EVENT · COVER"
+              alt={`Обкладинка події «${event.title}»`}
+            />
+          ) : null}
           <EventBadges badges={event.badges} />
           <h2
             id="event-sheet-title"

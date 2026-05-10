@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Avatar } from "@/components/atoms/Avatar";
@@ -71,9 +72,11 @@ export function DesktopNav() {
   const pathname = usePathname();
   const mounted = useMounted();
   const loggedIn = useAuthStore((s) => s.loggedIn);
+  const role = useAuthStore((s) => s.role);
   // Default to the guest layout on SSR/first paint to avoid hydration drift
   // between server and client (the auth store is localStorage-backed).
   const isLoggedIn = mounted && loggedIn;
+  const isAdmin = mounted && role === "admin";
 
   const onAccess = () => {
     const url = new URL(window.location.href);
@@ -88,6 +91,7 @@ export function DesktopNav() {
   const communitiesActive = pathname.startsWith("/communities");
   const savedActive = pathname === "/saved";
   const accountActive = pathname === "/account";
+  const adminActive = pathname.startsWith("/admin");
 
   return (
     <header
@@ -96,22 +100,18 @@ export function DesktopNav() {
     >
       <Link
         href="/"
-        className="flex items-center gap-2.5"
+        className="flex items-center"
         aria-label="Свої поруч — на головну"
       >
-        <span
-          aria-hidden
-          className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-[#1A1A1A] text-white"
-          style={{ fontSize: 13, fontWeight: 700, letterSpacing: "-0.02em" }}
-        >
-          сп
-        </span>
-        <span
-          className="text-text"
-          style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          Свої поруч
-        </span>
+        <Image
+          src="/logo.png"
+          alt="Свої поруч"
+          width={500}
+          height={120}
+          priority
+          sizes="170px"
+          style={{ height: 32, width: "auto" }}
+        />
       </Link>
 
       <nav className="ml-6 flex items-center gap-0.5" aria-label="Розділи">
@@ -124,6 +124,9 @@ export function DesktopNav() {
         <ComingSoonItem label="Акції поруч" />
         {isLoggedIn ? (
           <NavTab label="Збережені" href="/saved" active={savedActive} />
+        ) : null}
+        {isAdmin ? (
+          <NavTab label="Адмін" href="/admin/events" active={adminActive} />
         ) : null}
       </nav>
 

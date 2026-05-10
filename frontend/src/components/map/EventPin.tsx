@@ -39,6 +39,8 @@ export function EventPin({
 }: EventPinProps) {
   const c = COLOR[color];
   const size = big || focused ? 44 : 36;
+  const fontSize = big ? 13 : 11;
+  const iconSize = big ? 11 : 9;
 
   const containerStyle: CSSProperties = {
     position: "relative",
@@ -76,10 +78,12 @@ export function EventPin({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    gap: 2,
     color: empty ? c : "#fff",
     fontFamily: "var(--font-sans)",
-    fontSize: big ? 15 : 13,
+    fontSize,
     fontWeight: 700,
+    lineHeight: 1,
     paddingBottom: 6,
   };
 
@@ -93,8 +97,33 @@ export function EventPin({
       style={containerStyle}
     >
       <span style={dropStyle}>
-        <span style={labelStyle}>{empty ? "+" : count}</span>
+        <span style={labelStyle}>
+          {empty ? (
+            "+"
+          ) : (
+            <>
+              <span>{count}</span>
+              <PersonGlyph size={iconSize} />
+            </>
+          )}
+        </span>
       </span>
     </Wrapper>
+  );
+}
+
+function PersonGlyph({ size }: { size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ flex: "none" }}
+    >
+      <circle cx="12" cy="7" r="3.6" />
+      <path d="M4.5 20.5c1.4-3.7 4.2-5.6 7.5-5.6s6.1 1.9 7.5 5.6a1 1 0 0 1-.9 1.4H5.4a1 1 0 0 1-.9-1.4z" />
+    </svg>
   );
 }

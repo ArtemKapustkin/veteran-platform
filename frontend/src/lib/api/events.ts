@@ -1,17 +1,21 @@
 import { api, type Query } from "./client";
 import type {
+  AdminEventListFilters,
   ApiEventDetail,
   EventCreatePayload,
   EventListFilters,
   EventPage,
+  EventUpdatePayload,
   Registration,
   RegistrationCreate,
   RegistrationPage,
 } from "./types";
 
-function filtersToQuery(filters?: EventListFilters): Query | undefined {
+function filtersToQuery(
+  filters?: EventListFilters | AdminEventListFilters,
+): Query | undefined {
   if (!filters) return undefined;
-  // EventListFilters has a closed shape, but `Query` expects an open
+  // The filter types have closed shapes, but `Query` expects an open
   // index signature. Cast through unknown — the values themselves are
   // already valid query primitives by construction.
   return filters as unknown as Query;
@@ -54,4 +58,40 @@ export const eventsApi = {
 
   roster: (eventId: string) =>
     api.get<RegistrationPage>(`/api/v1/events/${eventId}/registrations`),
+
+  // ── Admin ────────────────────────────────────────────────────────────
+  // Mirrors the routes registered in
+  // `backend/internal/http_handler/admin_event_handler.go`. All require
+  // a bearer token whose role is `admin`; otherwise the backend returns
+  // 403 and we surface it via ApiError.
+
+  adminList: (filters?: AdminEventListFilters, signal?: AbortSignal) =>
+    api.get<EventPage>(
+      "/api/v1/admin/events",
+      filtersToQuery(filters),
+      signal,
+    ),
+
+  adminCreate: (payload: EventCreatePayload) =>
+    api.post<ApiEventDetail>("/api/v1/admin/events", payload),
+
+  adminUpdate: (id: string, payload: EventUpdatePayload) =>
+    api.patch<ApiEventDetail>(`/api/v1/admin/events/${id}`, payload),
+
+  adminRemove: (id: string) =>
+    api.delete<void>(`/api/v1/admin/events/${id}`),
+
+  adminApprove: (id: string) =>
+    api.post<ApiEventDetail>(`/api/v1/admin/events/${id}/approve`),
+
+  adminReject: (id: string, reason?: string) =>
+    api.post<ApiEventDetail>(`/api/v1/admin/events/${id}/reject`, {
+      reason: reason ?? "",
+    }),
+
+  adminPublish: (id: string) =>
+    api.post<ApiEventDetail>(`/api/v1/admin/events/${id}/publish`),
+
+  adminCancel: (id: string) =>
+    api.post<ApiEventDetail>(`/api/v1/admin/events/${id}/cancel`),
 };

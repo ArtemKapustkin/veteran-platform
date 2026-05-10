@@ -205,3 +205,19 @@ export const LockIcon = makeIcon(() => (
 export const SparkleIcon = makeIcon(() => (
   <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.5 5.5l2.8 2.8M15.7 15.7l2.8 2.8M5.5 18.5l2.8-2.8M15.7 8.3l2.8-2.8" />
 ));
+
+export const PencilIcon = makeIcon(() => (
+  <>
+    <path d="M4 20h4l11-11-4-4L4 16v4z" />
+    <path d="M14 5l4 4" />
+  </>
+));
+
+export const TrashIcon = makeIcon(() => (
+  <>
+    <path d="M5 7h14" />
+    <path d="M9 7V4h6v3" />
+    <path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" />
+    <path d="M10 11v6M14 11v6" />
+  </>
+));
