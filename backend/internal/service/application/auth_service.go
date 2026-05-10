@@ -16,14 +16,6 @@ import (
 	"github.com/ArtemKapustkin/veteran-platform/backend/pkg/otp"
 )
 
-const (
-	maxOtpAttempts     = 5
-	otpRateLimitWindow = time.Minute
-	otpRateLimitMax    = 1
-	otpHourlyWindow    = time.Hour
-	otpHourlyMax       = 5
-)
-
 type AuthService struct {
 	cfg           *config.Config
 	log           *logger.Logger
@@ -56,21 +48,6 @@ func NewAuthService(
 
 func (s *AuthService) RequestOTP(ctx context.Context, phone string) error {
 	now := time.Now()
-
-	minuteCount, err := s.otpCodes.CountRecent(ctx, phone, now.Add(-otpRateLimitWindow))
-	if err != nil {
-		return err
-	}
-	if minuteCount >= otpRateLimitMax {
-		return apperrors.NewRateLimitedError("спробуйте через хвилину")
-	}
-	hourCount, err := s.otpCodes.CountRecent(ctx, phone, now.Add(-otpHourlyWindow))
-	if err != nil {
-		return err
-	}
-	if hourCount >= otpHourlyMax {
-		return apperrors.NewRateLimitedError("забагато запитів, спробуйте за годину")
-	}
 
 	code, err := otp.GenerateCode(s.cfg.OTPLength)
 	if err != nil {
@@ -105,11 +82,7 @@ func (s *AuthService) VerifyOTP(ctx context.Context, phone, code string) (*view.
 		if record == nil || !record.Active(now) {
 			return nil, apperrors.NewUnauthorizedError("invalid or expired code")
 		}
-		if record.Attempts >= maxOtpAttempts {
-			return nil, apperrors.NewRateLimitedError("too many attempts")
-		}
 		if record.CodeHash != otp.HashCode(code) {
-			_ = s.otpCodes.IncrementAttempts(ctx, record.ID)
 			return nil, apperrors.NewUnauthorizedError("invalid or expired code")
 		}
 		if err := s.otpCodes.MarkConsumed(ctx, record.ID, now); err != nil {
