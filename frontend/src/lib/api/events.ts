@@ -32,10 +32,8 @@ export const eventsApi = {
     api.post<ApiEventDetail>("/api/v1/events", payload),
 
   /**
-   * Upload an event cover photo. Veteran-only — backend stores the file
-   * via the configured uploader (local in dev, GCS in prod) and returns
-   * a public URL. Field name must be `file`; allowed types: jpg/png/webp;
-   * max size 10MB (mirrors `backend/internal/http_handler/upload_handler.go`).
+   * Upload an event cover image. Auth: veteran or admin (`RequireVeteran`
+   * allows both). Returns a public URL for `cover_image_url`.
    */
   uploadCover: (file: File, signal?: AbortSignal) => {
     const fd = new FormData();

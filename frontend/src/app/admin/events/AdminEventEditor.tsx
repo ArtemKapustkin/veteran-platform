@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Btn } from "@/components/atoms/Btn";
 import { Pill } from "@/components/atoms/Pill";
 import { EventPagePreview } from "@/components/add-event/EventPagePreview";
+import { EventCoverUploadField } from "@/components/add-event/FormPrimitives";
 import { LocationPicker } from "@/components/add-event/LocationPicker";
 import { ArrowIcon, BackIcon, CloseIcon } from "@/components/icons";
 import {
@@ -11,6 +12,7 @@ import {
   type AdminWizardStepDef,
 } from "./AdminEventStepper";
 import { ApiError, eventsApi } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import type {
   AccessibilityTag,
   ApiEvent,
@@ -538,13 +540,31 @@ export function AdminEventEditor({
                   }}
                 />
               </Field>
-              <Field label="Обкладинка (URL)" hint="Можна залишити порожнім">
-                <Input
-                  value={form.coverImageUrl}
-                  onChange={(v) => set("coverImageUrl", v)}
-                  placeholder="https://…"
+              <Field
+                label="Обкладинка"
+                hint="Завантаж JPG, PNG або WEBP (до 10 МБ). Можна залишити без фото."
+              >
+                <EventCoverUploadField
+                  imageUrl={form.coverImageUrl}
+                  onImageUrlChange={(v) => set("coverImageUrl", v)}
+                  disabled={submitting}
                 />
               </Field>
+              <details className="border-border-soft mt-1 rounded-[10px] border bg-white px-3 py-2.5">
+                <summary className="text-text2 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>
+                    Або вставити посилання на зображення
+                  </span>
+                </summary>
+                <div className="mt-2.5">
+                  <Input
+                    value={form.coverImageUrl}
+                    onChange={(v) => set("coverImageUrl", v)}
+                    placeholder="https://…"
+                    disabled={submitting}
+                  />
+                </div>
+              </details>
               <Toggle
                 label="Лише для верифікованих УБД"
                 checked={form.verifiedOnly}
@@ -1084,6 +1104,7 @@ function Input({
   inputMode,
   min,
   maxLength,
+  disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -1092,6 +1113,7 @@ function Input({
   inputMode?: "text" | "numeric" | "decimal";
   min?: number;
   maxLength?: number;
+  disabled?: boolean;
 }) {
   return (
     <input
@@ -1102,7 +1124,11 @@ function Input({
       inputMode={inputMode}
       min={min}
       maxLength={maxLength}
-      className={INPUT_BASE}
+      disabled={disabled}
+      className={cn(
+        INPUT_BASE,
+        disabled && "cursor-not-allowed bg-black/[0.03] opacity-60",
+      )}
       style={{ fontSize: 14 }}
     />
   );

@@ -6,6 +6,11 @@ import { Photo, type PhotoTone } from "@/components/atoms/Photo";
 import { eventsApi, ApiError } from "@/lib/api";
 import { COVER_TONES } from "./draft";
 
+/** Allowed MIME types for `POST .../uploads/event-cover` (mirror backend). */
+export const COVER_UPLOAD_ACCEPT = "image/jpeg,image/png,image/webp";
+/** Max multipart size for event covers (`upload_handler.go` uses 10MB). */
+export const COVER_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+
 // ─── Label / FieldGroup ──────────────────────────────
 
 export function FormLabel({
@@ -222,8 +227,22 @@ export function FormChips(props: FormChipsProps) {
 // URL is stored on the draft (`coverUrl`). Swatches below stay live so the
 // organiser can pick a fallback tone for templates that don't have a photo.
 
-const COVER_ACCEPT = "image/jpeg,image/png,image/webp";
-const COVER_MAX_BYTES = 10 * 1024 * 1024;
+function CoverUploadSpinner() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 22,
+        height: 22,
+        border: "2px solid rgba(58,35,11,0.18)",
+        borderTopColor: "var(--color-primary)",
+        borderRadius: "50%",
+        display: "inline-block",
+        animation: "spin 0.85s linear infinite",
+      }}
+    />
+  );
+}
 
 export function CoverPicker({
   tone,
@@ -252,12 +271,14 @@ export function CoverPicker({
     // fires `change` (browsers dedupe identical selections otherwise).
     e.target.value = "";
     if (!file) return;
-    if (!COVER_ACCEPT.split(",").includes(file.type)) {
+    if (!COVER_UPLOAD_ACCEPT.split(",").includes(file.type)) {
       setError("Підтримуємо JPG, PNG, WEBP");
       return;
     }
-    if (file.size > COVER_MAX_BYTES) {
-      setError(`Файл завеликий — максимум ${COVER_MAX_BYTES / 1024 / 1024} МБ`);
+    if (file.size > COVER_UPLOAD_MAX_BYTES) {
+      setError(
+        `Файл завеликий — максимум ${COVER_UPLOAD_MAX_BYTES / 1024 / 1024} МБ`,
+      );
       return;
     }
     setBusy(true);
@@ -267,7 +288,7 @@ export function CoverPicker({
       onImageChange(url);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setError("Спочатку увійди — фото можуть завантажувати лише ветерани");
+        setError("Спочатку увійди — сесія закінчилась або немає доступу");
       } else {
         setError(
           err instanceof Error ? err.message : "Не вдалось завантажити фото",
@@ -324,7 +345,7 @@ export function CoverPicker({
               fontWeight: 500,
             }}
           >
-            <Spinner />
+            <CoverUploadSpinner />
             Завантажуємо…
           </div>
         ) : null}
@@ -367,7 +388,7 @@ export function CoverPicker({
       <input
         ref={fileRef}
         type="file"
-        accept={COVER_ACCEPT}
+        accept={COVER_UPLOAD_ACCEPT}
         onChange={onFile}
         className="sr-only"
       />
@@ -406,20 +427,169 @@ export function CoverPicker({
   );
 }
 
-function Spinner() {
+/** Admin / simple flow: upload produces a public URL; same API as community add-event. */
+export function EventCoverUploadField({
+  imageUrl,
+  onImageUrlChange,
+  disabled,
+}: {
+  /** Stored on the event as `cover_image_url` (HTTPS after upload). */
+  imageUrl: string;
+  onImageUrlChange: (url: string) => void;
+  disabled?: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const trimmed = imageUrl.trim();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const openPicker = () => {
+    if (busy || disabled) return;
+    setError(null);
+    fileRef.current?.click();
+  };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!COVER_UPLOAD_ACCEPT.split(",").includes(file.type)) {
+      setError("Підтримуємо JPG, PNG, WEBP");
+      return;
+    }
+    if (file.size > COVER_UPLOAD_MAX_BYTES) {
+      setError(
+        `Файл завеликий — максимум ${COVER_UPLOAD_MAX_BYTES / 1024 / 1024} МБ`,
+      );
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { url } = await eventsApi.uploadCover(file);
+      onImageUrlChange(url);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setError("Потрібно увійти в систему");
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Не вдалось завантажити зображення",
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <span
-      aria-hidden
-      style={{
-        width: 22,
-        height: 22,
-        border: "2px solid rgba(58,35,11,0.18)",
-        borderTopColor: "var(--color-primary)",
-        borderRadius: "50%",
-        display: "inline-block",
-        animation: "spin 0.85s linear infinite",
-      }}
-    />
+    <div>
+      <button
+        type="button"
+        onClick={openPicker}
+        aria-label={
+          trimmed ? "Змінити фото обкладинки" : "Завантажити фото обкладинки"
+        }
+        disabled={busy || disabled}
+        className="border-border relative block w-full max-w-[420px] overflow-hidden rounded-[14px] border border-dashed"
+        style={{ aspectRatio: "16 / 10", background: "#FBFAF6" }}
+      >
+        <Photo
+          tone="cream"
+          fill
+          radius={0}
+          imageUrl={trimmed || null}
+          alt=""
+        />
+        {!trimmed && !busy ? (
+          <div
+            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"
+            style={{
+              color: "rgba(58,35,11,0.7)",
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-xl backdrop-blur-sm"
+              style={{ background: "rgba(255,255,255,0.7)" }}
+            >
+              <PlusIcon size={22} />
+            </div>
+            Натисни, щоб обрати файл
+          </div>
+        ) : null}
+        {busy ? (
+          <div
+            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"
+            style={{
+              background: "rgba(255,255,255,0.75)",
+              color: "var(--color-text)",
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            <CoverUploadSpinner />
+            Завантажуємо…
+          </div>
+        ) : null}
+        {trimmed && !busy ? (
+          <span
+            aria-hidden
+            className="absolute left-2.5 bottom-2.5 rounded-[8px] px-2 py-1 backdrop-blur-md"
+            style={{
+              background: "rgba(255,255,255,0.92)",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--color-text)",
+              letterSpacing: "-0.005em",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+            }}
+          >
+            Змінити
+          </span>
+        ) : null}
+      </button>
+
+      {trimmed && !busy ? (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            onImageUrlChange("");
+          }}
+          disabled={disabled}
+          aria-label="Прибрати обкладинку"
+          className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
+          style={{
+            background: "transparent",
+            color: "var(--color-text2)",
+            fontSize: 12,
+            fontWeight: 500,
+          }}
+        >
+          <CloseIcon size={12} />
+          Без фото
+        </button>
+      ) : null}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept={COVER_UPLOAD_ACCEPT}
+        onChange={onFile}
+        className="sr-only"
+        disabled={disabled}
+      />
+
+      {error ? (
+        <p
+          className="mt-1.5 m-0"
+          style={{ fontSize: 12, color: "#C04848", lineHeight: 1.4 }}
+        >
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
