@@ -179,7 +179,14 @@ export interface RegistrationCompanion {
 export interface Registration {
   id: string;
   event_id: string;
+  /** Organizer's veteran id. */
   veteran_id: string;
+  /**
+   * Organizer's display name. Populated server-side via the
+   * `Organizer` relation so a recipient can render "Z Іваном П."
+   * without an extra `/veterans/{id}` round-trip.
+   */
+  organizer_fullname?: string | null;
   seats: number;
   status: RegistrationStatus;
   companions?: RegistrationCompanion[];

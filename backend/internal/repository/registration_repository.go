@@ -37,7 +37,12 @@ func (r *RegistrationRepository) FindByID(ctx context.Context, id uuid.UUID) (*m
 
 func (r *RegistrationRepository) FindByIDWithCompanions(ctx context.Context, id uuid.UUID) (*model.Registration, error) {
 	var reg model.Registration
-	err := r.db.NewSelect().Model(&reg).Relation("Companions").Where("registration.id = ?", id).Scan(ctx)
+	err := r.db.NewSelect().
+		Model(&reg).
+		Relation("Companions").
+		Relation("Organizer").
+		Where("registration.id = ?", id).
+		Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -59,6 +64,7 @@ func (r *RegistrationRepository) FindActiveByEventAndVeteran(ctx context.Context
 	err := r.db.NewSelect().
 		Model(&reg).
 		Relation("Companions").
+		Relation("Organizer").
 		Where("registration.event_id = ?", eventID).
 		Where("registration.status IN ('pending_companions', 'confirmed')").
 		Where(
@@ -101,6 +107,7 @@ func (r *RegistrationRepository) ListMine(ctx context.Context, veteranID uuid.UU
 	q := r.db.NewSelect().
 		Model(&rows).
 		Relation("Companions").
+		Relation("Organizer").
 		Where(
 			"(registration.veteran_id = ? OR EXISTS (SELECT 1 FROM vp.registration_companions rc WHERE rc.registration_id = registration.id AND rc.veteran_id = ? AND rc.status = 'confirmed'))",
 			veteranID, veteranID,

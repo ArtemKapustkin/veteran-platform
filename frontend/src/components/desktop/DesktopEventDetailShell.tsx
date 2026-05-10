@@ -25,6 +25,7 @@ import {
 } from "@/components/icons";
 import { GroupRegisterSheet } from "@/components/sheets/GroupRegisterSheet";
 import { OrganizerInvitesPanel } from "@/components/shared/OrganizerInvitesPanel";
+import { RecipientGroupPanel } from "@/components/shared/RecipientGroupPanel";
 import { categoryMeta } from "@/data/categories";
 import { safeMapPoint, type AppEvent } from "@/data/events";
 import { useEventsStore } from "@/lib/store";
@@ -350,6 +351,7 @@ export function DesktopEventDetailShell({ event }: { event: AppEvent }) {
                     </div>
                   </div>
                   <OrganizerInvitesPanel event={event} />
+                  <RecipientGroupPanel event={event} />
                   <CancelRsvpAction
                     onConfirm={() => handleRsvp(false)}
                     align="center"

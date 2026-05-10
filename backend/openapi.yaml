@@ -1253,6 +1253,7 @@ components:
         id:                     { type: string, format: uuid }
         event_id:               { type: string, format: uuid }
         veteran_id:             { type: string, format: uuid, description: Group creator }
+        organizer_fullname:     { type: string, nullable: true, description: Display name of the group creator (`veteran_id`) }
         seats:                  { type: integer }
         status:                 { $ref: '#/components/schemas/RegistrationStatus' }
         companions:             { type: array, items: { $ref: '#/components/schemas/RegistrationCompanion' } }

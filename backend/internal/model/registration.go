@@ -22,6 +22,11 @@ type Registration struct {
 	UpdatedAt            time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 
 	Companions []*RegistrationCompanion `bun:"rel:has-many,join:id=registration_id"`
+	// Organizer is the veteran who created the group registration.
+	// Loaded via `.Relation("Organizer")` so the registration view can
+	// expose the organizer's fullname to recipients without a second
+	// round-trip per row.
+	Organizer *Veteran `bun:"rel:belongs-to,join:veteran_id=id"`
 }
 
 type RegistrationCompanion struct {

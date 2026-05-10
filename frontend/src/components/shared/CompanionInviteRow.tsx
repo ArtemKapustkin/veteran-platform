@@ -83,12 +83,12 @@ export function CompanionInviteRow({
           >
             {shareUrl || "—"}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Btn
               kind="tg"
               size="sm"
               icon={<TgIcon size={15} />}
-              className="flex-1"
+              className="shrink-0 whitespace-nowrap"
               onClick={() => {
                 if (!tgHref) return;
                 window.open(tgHref, "_blank", "noopener,noreferrer");
@@ -100,6 +100,7 @@ export function CompanionInviteRow({
               kind="secondary"
               size="sm"
               icon={<ShareIcon size={15} />}
+              className="shrink-0 whitespace-nowrap"
               onClick={handleCopy}
             >
               {copied ? "Скопійовано" : "Копіювати"}

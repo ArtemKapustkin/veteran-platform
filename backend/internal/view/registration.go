@@ -24,9 +24,14 @@ type RegistrationCompanion struct {
 }
 
 type Registration struct {
-	ID                   uuid.UUID               `json:"id"`
-	EventID              uuid.UUID               `json:"event_id"`
-	VeteranID            uuid.UUID               `json:"veteran_id"`
+	ID        uuid.UUID `json:"id"`
+	EventID   uuid.UUID `json:"event_id"`
+	VeteranID uuid.UUID `json:"veteran_id"`
+	// OrganizerFullname surfaces the group creator's display name to
+	// recipients so the event-detail panel can render "Z Іваном П."
+	// without a second `/me` call. Always populated when the
+	// `Organizer` relation was preloaded; nil otherwise.
+	OrganizerFullname    *string                 `json:"organizer_fullname,omitempty"`
 	Seats                int                     `json:"seats"`
 	Status               string                  `json:"status"`
 	Companions           []RegistrationCompanion `json:"companions"`
@@ -75,7 +80,7 @@ func FromRegistration(r *model.Registration) *Registration {
 			RespondedAt: c.RespondedAt,
 		})
 	}
-	return &Registration{
+	out := &Registration{
 		ID:                   r.ID,
 		EventID:              r.EventID,
 		VeteranID:            r.VeteranID,
@@ -87,6 +92,10 @@ func FromRegistration(r *model.Registration) *Registration {
 		ConfirmedAt:          r.ConfirmedAt,
 		CancelledAt:          r.CancelledAt,
 	}
+	if r.Organizer != nil {
+		out.OrganizerFullname = r.Organizer.Fullname
+	}
+	return out
 }
 
 // FromRegistrationFor is the audience-aware twin of FromRegistration.
