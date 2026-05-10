@@ -113,7 +113,7 @@ type createEventReq struct {
 }
 
 var (
-	categoryValues = []any{"spa", "sport", "yoga", "culture", "education", "nature", "psychology", "social", "rehabilitation"}
+	categoryValues = []any{"spa", "sport", "yoga", "culture", "education", "nature", "psychology", "social", "rehabilitation", "charity"}
 	formatValues   = []any{"offline", "online", "hybrid"}
 	repeatValues   = []any{"once", "weekly", "biweekly", "monthly"}
 	forWhomValues  = []any{
@@ -125,8 +125,8 @@ var (
 		"free_via_state_program", "discount_for_veterans", "paid",
 	}
 	accessibilityValues = []any{
-		"is_accessible", "no_shooting", "kids_allowed", "separate_zones",
-		"shelter_nearby", "age_18_plus",
+		"is_accessible", "no_shooting", "no_shooting_or_publishing", "kids_allowed",
+		"separate_zones", "shelter_nearby", "age_18_plus",
 	}
 	districtValues = []any{
 		"holosiivskyi", "obolonskyi", "pecherskyi", "podilskyi", "sviatoshynskyi",

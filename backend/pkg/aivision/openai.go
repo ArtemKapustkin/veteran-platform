@@ -3,11 +3,12 @@ package aivision
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"time"
 )
@@ -37,7 +38,12 @@ func (v *OpenAIVerifier) Verify(ctx context.Context, image []byte, mime, documen
 	if mime == "" {
 		mime = "image/jpeg"
 	}
-	dataURL := "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(image)
+
+	fileID, err := v.uploadVisionFile(ctx, image, mime)
+	if err != nil {
+		return nil, err
+	}
+	defer v.deleteFile(fileID)
 
 	threadID, err := v.createThread(ctx)
 	if err != nil {
@@ -45,7 +51,7 @@ func (v *OpenAIVerifier) Verify(ctx context.Context, image []byte, mime, documen
 	}
 	defer v.deleteThread(threadID)
 
-	if err := v.addMessage(ctx, threadID, dataURL, documentType, expectedName); err != nil {
+	if err := v.addMessage(ctx, threadID, fileID, documentType, expectedName); err != nil {
 		return nil, err
 	}
 
@@ -120,17 +126,88 @@ func (v *OpenAIVerifier) deleteThread(threadID string) {
 	_, _ = v.request(ctx, "DELETE", "/threads/"+threadID, nil)
 }
 
-func (v *OpenAIVerifier) addMessage(ctx context.Context, threadID, dataURL, documentType, expectedName string) error {
+func (v *OpenAIVerifier) addMessage(ctx context.Context, threadID, fileID, documentType, expectedName string) error {
 	text := buildUserPrompt(documentType, expectedName)
 	content := []map[string]any{
 		{"type": "text", "text": text},
-		{"type": "image_url", "image_url": map[string]string{"url": dataURL, "detail": "low"}},
+		{"type": "image_file", "image_file": map[string]string{"file_id": fileID, "detail": "low"}},
 	}
 	_, err := v.request(ctx, "POST", "/threads/"+threadID+"/messages", map[string]any{
 		"role":    "user",
 		"content": content,
 	})
 	return err
+}
+
+func (v *OpenAIVerifier) uploadVisionFile(ctx context.Context, image []byte, mime string) (string, error) {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	if err := w.WriteField("purpose", "vision"); err != nil {
+		return "", fmt.Errorf("file purpose: %w", err)
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="file"; filename="`+visionFilename(mime)+`"`)
+	h.Set("Content-Type", mime)
+	part, err := w.CreatePart(h)
+	if err != nil {
+		return "", fmt.Errorf("file part: %w", err)
+	}
+	if _, err := part.Write(image); err != nil {
+		return "", fmt.Errorf("file write: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return "", fmt.Errorf("file close: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", openAIBaseURL+"/files", &buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+v.apiKey)
+	req.Header.Set("OpenAI-Beta", beta)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	resp, err := v.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("openai file upload: %w", err)
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("openai file upload: %d %s", resp.StatusCode, truncate(string(respBytes), 300))
+	}
+	var parsed struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(respBytes, &parsed); err != nil {
+		return "", fmt.Errorf("file upload parse: %w", err)
+	}
+	if parsed.ID == "" {
+		return "", fmt.Errorf("file upload: empty id (body=%s)", truncate(string(respBytes), 200))
+	}
+	return parsed.ID, nil
+}
+
+func (v *OpenAIVerifier) deleteFile(fileID string) {
+	if fileID == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _ = v.request(ctx, "DELETE", "/files/"+fileID, nil)
+}
+
+func visionFilename(mime string) string {
+	switch mime {
+	case "image/png":
+		return "doc.png"
+	case "image/webp":
+		return "doc.webp"
+	case "image/gif":
+		return "doc.gif"
+	default:
+		return "doc.jpg"
+	}
 }
 
 func (v *OpenAIVerifier) createRun(ctx context.Context, threadID string) (string, error) {
