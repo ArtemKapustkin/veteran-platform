@@ -30,6 +30,29 @@ make reset            # full nuke: down -v, postgres up, migrate, seed
 `make seed` requires the `postgres` compose service to be running and
 all migrations applied. `make reset` does the whole sequence.
 
+## real_events.sql (50 events parsed from public Telegram channels)
+
+`real_events.sql` is a separate idempotent INSERT block with 50 real
+event titles + descriptions parsed out of public Telegram channels
+(`Київ Мілітарі Хаб|Заходи` and `Ветеран Хаб на зв'язку`). Useful for
+demos where you want the FE filter chips to bite on real Ukrainian
+content rather than the 12 hand-curated rows in `seed.sql`.
+
+Apply manually after `make seed` (or directly against Cloud SQL):
+
+```bash
+docker exec -i veteran-platform-postgres-1 \
+  psql -U veteran -d veteran_platform < deployments/seed/real_events.sql
+```
+
+`created_by_id` references the prod admin row UUID
+`52fc80db-740e-465f-a3ca-d37134e33c31`. For local dev you'll need to
+either insert that veteran row first or adjust the SQL to point at a
+seeded UUID (e.g. `11111111-…` from `seed.sql`).
+
+The original parser script lived in `/tmp/parse_events.py` and is not
+checked in — the SQL output is treated as the canonical artifact.
+
 ## Logging in as a seeded user
 
 The OTP flow short-circuits for these phones the same as any other —
