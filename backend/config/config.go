@@ -26,9 +26,14 @@ type Config struct {
 	OTPLength int           `env:"OTP_LENGTH" envDefault:"6"`
 	OTPTTL    time.Duration `env:"OTP_TTL" envDefault:"5m"`
 
+	SMSProvider string `env:"SMS_PROVIDER" envDefault:""`
+
 	TwilioSID   string `env:"TWILIO_ACCOUNT_SID" envDefault:""`
 	TwilioToken string `env:"TWILIO_AUTH_TOKEN" envDefault:""`
 	TwilioFrom  string `env:"TWILIO_FROM" envDefault:""`
+
+	TurboSMSToken  string `env:"TURBOSMS_TOKEN" envDefault:""`
+	TurboSMSSender string `env:"TURBOSMS_SENDER" envDefault:""`
 
 	OpenAIKey         string `env:"OPENAI_API_KEY" envDefault:""`
 	OpenAIAssistantID string `env:"OPENAI_ASSISTANT_ID" envDefault:""`
