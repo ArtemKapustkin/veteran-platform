@@ -17,7 +17,7 @@ info:
     Key behaviors:
       - Terminology: "registration" (not "signup"/"booking") for joining an event.
       - Group registrations: max 4 people total (creator + up to 3 companions),
-        24-hour confirmation TTL. Quota is reserved on creation; if any companion
+        2-hour confirmation TTL. Quota is reserved on creation; if any companion
         declines or TTL elapses, the whole registration is cancelled and seats released.
       - Companions must be registered veterans. Each companion slot is created with
         a unique `invite_token`; the organizer shares
@@ -480,7 +480,7 @@ paths:
         group on creation. The response includes one `invite_token` per companion
         slot under `companions[]`; the organizer is expected to build a share URL
         (`<frontend>/invitations/{token}`) and send it via Telegram. The
-        reservation expires 24h after creation — if not all companions have
+        reservation expires 2h after creation — if not all companions have
         claimed their slot by then, the whole registration is auto-cancelled and
         seats released.
 
@@ -1256,7 +1256,7 @@ components:
         seats:                  { type: integer }
         status:                 { $ref: '#/components/schemas/RegistrationStatus' }
         companions:             { type: array, items: { $ref: '#/components/schemas/RegistrationCompanion' } }
-        reservation_expires_at: { type: string, format: date-time, nullable: true, description: Set while status=pending_companions; 24h after creation }
+        reservation_expires_at: { type: string, format: date-time, nullable: true, description: Set while status=pending_companions; 2h after creation }
         created_at:             { type: string, format: date-time }
         confirmed_at:           { type: string, format: date-time, nullable: true }
         cancelled_at:           { type: string, format: date-time, nullable: true }

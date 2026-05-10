@@ -196,7 +196,10 @@ func (s *EventService) Get(ctx context.Context, id uuid.UUID, viewerID *uuid.UUI
 			return nil, err
 		}
 		if reg != nil {
-			detail.MyRegistration = view.FromRegistration(reg)
+			// Redact companion invite_tokens unless the viewer is the
+			// organizer — confirmed companions also see their own
+			// registration here via the EXISTS clause inside the repo.
+			detail.MyRegistration = view.FromRegistrationFor(reg, *viewerID)
 		}
 	}
 	return detail, nil

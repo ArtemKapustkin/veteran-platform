@@ -20,8 +20,13 @@ import (
 )
 
 const (
-	maxGroupSize        = 4
-	groupReservationTTL = 24 * time.Hour
+	maxGroupSize = 4
+	// groupReservationTTL is how long a `pending_companions`
+	// registration holds reserved seats before the expirer cancels it
+	// and frees the quota. Short enough that an organizer who shares a
+	// link impulsively doesn't tie up seats overnight; long enough for
+	// a buddy to notice a Telegram message and sign in.
+	groupReservationTTL = 2 * time.Hour
 	expirerInterval     = time.Minute
 	// inviteTokenBytes is the entropy size for `invite_token`. 18 bytes
 	// → 24 base64 characters; collision-resistant for a humble database
@@ -276,7 +281,10 @@ func (s *RegistrationService) ListMine(ctx context.Context, veteranID uuid.UUID,
 	if err != nil {
 		return nil, err
 	}
-	return mapRegistrationPage(rows), nil
+	// Caller may appear here either as the organizer or as a confirmed
+	// companion in someone else's group. The audience-aware view
+	// keeps invite_tokens visible only on registrations they own.
+	return mapRegistrationPageFor(rows, veteranID), nil
 }
 
 func (s *RegistrationService) ListEventRoster(ctx context.Context, eventID, callerID uuid.UUID, isAdmin bool) (*view.RegistrationPage, error) {
@@ -296,7 +304,9 @@ func (s *RegistrationService) ListEventRoster(ctx context.Context, eventID, call
 	if err != nil {
 		return nil, err
 	}
-	return mapRegistrationPage(rows), nil
+	// Roster is multi-organizer: redact every companion token by
+	// passing a Nil viewer so no row matches `reg.veteran_id`.
+	return mapRegistrationPageFor(rows, uuid.Nil), nil
 }
 
 // LookupInvitation resolves a public Telegram-share token to an event
@@ -444,7 +454,9 @@ func (s *RegistrationService) ClaimInvitation(ctx context.Context, token string,
 	if err != nil {
 		return nil, err
 	}
-	return view.FromRegistration(full), nil
+	// Caller is the recipient (a companion), so redact every
+	// invite_token — including their own, which they no longer need.
+	return view.FromRegistrationFor(full, caller.ID), nil
 }
 
 // DeclineInvitation cancels the whole group reservation when one of
@@ -505,7 +517,7 @@ func (s *RegistrationService) DeclineInvitation(ctx context.Context, token strin
 	if err != nil {
 		return nil, err
 	}
-	return view.FromRegistration(full), nil
+	return view.FromRegistrationFor(full, caller.ID), nil
 }
 
 func (s *RegistrationService) ExpireStale(ctx context.Context) (int, error) {
@@ -559,10 +571,14 @@ func StartRegistrationExpirer(lc fx.Lifecycle, svc *RegistrationService, log *lo
 	})
 }
 
-func mapRegistrationPage(rows []model.Registration) *view.RegistrationPage {
+// mapRegistrationPageFor converts a model slice into a paged view,
+// redacting companion `invite_token`s on every row whose organizer
+// isn't `viewerID`. Pass `uuid.Nil` to redact tokens on every row
+// (e.g. admin / multi-organizer roster views).
+func mapRegistrationPageFor(rows []model.Registration, viewerID uuid.UUID) *view.RegistrationPage {
 	items := make([]*view.Registration, 0, len(rows))
 	for i := range rows {
-		items = append(items, view.FromRegistration(&rows[i]))
+		items = append(items, view.FromRegistrationFor(&rows[i], viewerID))
 	}
 	return &view.RegistrationPage{
 		Items:      items,

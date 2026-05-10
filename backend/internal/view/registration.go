@@ -88,3 +88,23 @@ func FromRegistration(r *model.Registration) *Registration {
 		CancelledAt:          r.CancelledAt,
 	}
 }
+
+// FromRegistrationFor is the audience-aware twin of FromRegistration.
+// Companion `invite_token`s are the credential for joining a group, so
+// they must NEVER be returned to a non-organizer (e.g. another
+// confirmed companion who pulls the same registration via
+// `/me/registrations`). The organizer keeps the full payload so the
+// event-detail page can show share buttons per slot.
+func FromRegistrationFor(r *model.Registration, viewerID uuid.UUID) *Registration {
+	out := FromRegistration(r)
+	if out == nil {
+		return out
+	}
+	if r.VeteranID == viewerID {
+		return out
+	}
+	for i := range out.Companions {
+		out.Companions[i].InviteToken = nil
+	}
+	return out
+}

@@ -490,8 +490,8 @@ function useIsExpired(iso: string): boolean {
   return target < now;
 }
 
-// Live "Залишилось 8 год / 23 хв" countdown. Updates once a minute —
-// good enough for a 24h TTL and avoids re-rendering every second.
+// Live "Залишилось 1 год / 23 хв" countdown. Updates once a minute —
+// fine for a 2-hour TTL and avoids re-rendering every second.
 function useExpiresIn(iso: string): string {
   const target = useMemo(() => {
     if (!iso) return null;

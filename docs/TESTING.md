@@ -287,7 +287,7 @@ GROUP=$(curl -sS -X POST -H "Authorization: Bearer $ORG_TOKEN" \
 GROUP_ID=$(echo "$GROUP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
 INV_TOKEN=$(echo "$GROUP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["companions"][0]["invite_token"])')
 echo "$GROUP" | python3 -c 'import sys,json;d=json.load(sys.stdin);print("status:",d["status"],"reservation_expires_at:",d["reservation_expires_at"][:19])'
-# pending_companions, +24h. Share https://app/invitations/$INV_TOKEN via Telegram.
+# pending_companions, +2h. Share https://app/invitations/$INV_TOKEN via Telegram.
 
 # Public preview (no auth needed) — what the landing page renders
 curl -sS http://localhost:8088/api/v1/invitations/$INV_TOKEN \
@@ -321,7 +321,7 @@ curl -sS -X POST -H "Authorization: Bearer $COMP_TOKEN" \
 # cancelled
 ```
 
-### TTL expiry (don't want to wait 24 h?)
+### TTL expiry (don't want to wait 2 h?)
 
 ```bash
 # Create a group, then backdate the reservation in the DB

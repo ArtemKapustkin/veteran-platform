@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
-import { CheckIcon, CloseIcon, ShareIcon, TgIcon } from "@/components/icons";
+import { CloseIcon } from "@/components/icons";
+import { CompanionInviteRow } from "@/components/shared/CompanionInviteRow";
 import type { AppEvent } from "@/data/events";
 import { ApiError, type RegistrationCompanion } from "@/lib/api";
 import { useEventsStore } from "@/lib/store";
@@ -126,7 +127,7 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
 
   // "Cancel reservation" from the share step: drop the group entirely
   // so the seats go back to the quota. We surface this so an organizer
-  // who picked too many seats isn't stuck waiting 24h for the TTL.
+  // who picked too many seats isn't stuck waiting for the TTL to lapse.
   // Reuses `setRsvp(eventId, false)` so the local heart / "Ти йдеш"
   // state stays in sync with what solo cancellation already does.
   const handleCancelReservation = async () => {
@@ -208,12 +209,12 @@ export function GroupRegisterSheet({ event, onClose }: GroupRegisterSheetProps) 
             <>
               Бронюємо до 4 місць на «{event.title}». Створимо
               посилання-запрошення — поділись ними у Telegram. У побратимів
-              буде 24 години, щоб приєднатись.
+              буде 2 години, щоб приєднатись.
             </>
           ) : (
             <>
               Місця заброньовано на «{event.title}». Поділись посиланням з
-              кожним побратимом у Telegram. Якщо ніхто не приєднається за 24
+              кожним побратимом у Telegram. Якщо ніхто не приєднається за 2
               години — місця звільняться автоматично.
             </>
           )}
@@ -344,7 +345,7 @@ function ShareStep({
 }: ShareStepProps) {
   // Build the share message once per event — it's a function of the
   // event title only and doesn't depend on which slot we're sharing.
-  const shareText = useMemo(
+  const inviteText = useMemo(
     () =>
       `Привіт! Запрошую тебе на «${event.title}». Натисни посилання, щоб приєднатись до групи — місце для тебе вже заброньовано:`,
     [event.title],
@@ -370,11 +371,11 @@ function ShareStep({
         </p>
       ) : (
         companions.map((c, i) => (
-          <CompanionShareRow
+          <CompanionInviteRow
             key={c.id}
             index={i + 1}
             companion={c}
-            shareText={shareText}
+            inviteText={inviteText}
           />
         ))
       )}
@@ -397,102 +398,3 @@ function ShareStep({
   );
 }
 
-interface CompanionShareRowProps {
-  index: number;
-  companion: RegistrationCompanion;
-  shareText: string;
-}
-
-function CompanionShareRow({
-  index,
-  companion,
-  shareText,
-}: CompanionShareRowProps) {
-  const [copied, setCopied] = useState(false);
-
-  // Build the absolute URL on the client so we don't need the backend
-  // to know about the SPA origin (mobile preview, dev tunnels, etc.).
-  // SSR would render an empty string; we only use this in event
-  // handlers / labels rendered client-side.
-  const shareUrl = useMemo(() => {
-    if (typeof window === "undefined" || !companion.invite_token) return "";
-    return `${window.location.origin}/invitations/${encodeURIComponent(companion.invite_token)}`;
-  }, [companion.invite_token]);
-
-  const tgHref = useMemo(() => {
-    if (!shareUrl) return "";
-    const u = encodeURIComponent(shareUrl);
-    const t = encodeURIComponent(shareText);
-    return `https://t.me/share/url?url=${u}&text=${t}`;
-  }, [shareUrl, shareText]);
-
-  const claimed = companion.status === "confirmed";
-
-  const handleCopy = async () => {
-    if (!shareUrl) return;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      toast.error("Не вдалось скопіювати", "Спробуй вручну з адресного рядка.");
-    }
-  };
-
-  return (
-    <div className="border-border-soft flex flex-col gap-2 rounded-[10px] border bg-white px-3.5 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-text2" style={{ fontSize: 12.5, fontWeight: 500 }}>
-          Побратим #{index}
-        </span>
-        {claimed ? (
-          <span
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5"
-            style={{
-              background: "#E8F6EF",
-              color: "#0E6E45",
-              fontSize: 11.5,
-              fontWeight: 600,
-            }}
-          >
-            <CheckIcon size={12} />
-            Прийнято
-          </span>
-        ) : null}
-      </div>
-
-      <div
-        className="text-text2 truncate rounded-[8px] bg-[var(--color-bg)] px-2.5 py-1.5"
-        style={{ fontSize: 12, fontFamily: "ui-monospace, monospace" }}
-        title={shareUrl}
-      >
-        {shareUrl || "—"}
-      </div>
-
-      {claimed ? null : (
-        <div className="flex flex-wrap gap-2">
-          <Btn
-            kind="tg"
-            size="sm"
-            icon={<TgIcon size={15} />}
-            className="flex-1"
-            onClick={() => {
-              if (!tgHref) return;
-              window.open(tgHref, "_blank", "noopener,noreferrer");
-            }}
-          >
-            Поділитись у Telegram
-          </Btn>
-          <Btn
-            kind="secondary"
-            size="sm"
-            icon={<ShareIcon size={15} />}
-            onClick={handleCopy}
-          >
-            {copied ? "Скопійовано" : "Копіювати"}
-          </Btn>
-        </div>
-      )}
-    </div>
-  );
-}
