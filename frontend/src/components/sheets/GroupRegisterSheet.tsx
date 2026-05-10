@@ -345,9 +345,12 @@ function ShareStep({
 }: ShareStepProps) {
   // Build the share message once per event — it's a function of the
   // event title only and doesn't depend on which slot we're sharing.
+  // Line breaks are deliberate: greeting + invite on separate lines,
+  // a blank line for breathing room, then the call-to-action right
+  // before the URL the row will append on its own line.
   const inviteText = useMemo(
     () =>
-      `Привіт! Запрошую тебе на «${event.title}». Натисни посилання, щоб приєднатись до групи — місце для тебе вже заброньовано:`,
+      `Привіт!\nЗапрошую тебе на «${event.title}».\n\nНатисни посилання, щоб приєднатись до групи — місце для тебе вже заброньовано:`,
     [event.title],
   );
 

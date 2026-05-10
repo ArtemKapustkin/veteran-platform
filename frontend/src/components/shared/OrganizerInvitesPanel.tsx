@@ -27,9 +27,12 @@ export function OrganizerInvitesPanel({ event }: OrganizerInvitesPanelProps) {
   const myVeteranId = useAuthStore((s) => s.veteran?.id);
   const reg = useEventsStore((s) => s.registrations[event.id]);
 
+  // Line breaks here drive the Telegram message layout —
+  // `CompanionInviteRow` appends `\n${shareUrl}` so the URL lands on
+  // its own line under the call-to-action.
   const inviteText = useMemo(
     () =>
-      `Привіт! Запрошую тебе на «${event.title}». Натисни посилання, щоб приєднатись до групи — місце для тебе вже заброньовано:`,
+      `Привіт!\nЗапрошую тебе на «${event.title}».\n\nНатисни посилання, щоб приєднатись до групи — місце для тебе вже заброньовано:`,
     [event.title],
   );
 

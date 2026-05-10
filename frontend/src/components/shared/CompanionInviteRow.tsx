@@ -15,9 +15,9 @@ import { toast } from "@/lib/useToast";
 //   - declined  → muted "Відхилив(ла)" badge
 //   - expired-on-cancel  → handled by the parent (panel hides itself)
 //
-// `inviteText` is the message body we pass to Telegram's share-url
-// endpoint; the parent computes it from the event title so the copy
-// stays in one place.
+// `inviteText` is the message body **without** the share URL — keep
+// `\n`s exactly where you want them in Telegram, the row appends
+// `\n${shareUrl}` so the link lands on its own line.
 
 export interface CompanionInviteRowProps {
   index: number;
@@ -43,9 +43,14 @@ export function CompanionInviteRow({
 
   const tgHref = useMemo(() => {
     if (!shareUrl) return "";
-    const u = encodeURIComponent(shareUrl);
-    const t = encodeURIComponent(inviteText);
-    return `https://t.me/share/url?url=${u}&text=${t}`;
+    // Put the URL inline at the end of `text` (instead of passing it
+    // as `url=`) so we own every line break — Telegram clients vary
+    // in how they glue the two params together, but they all render
+    // the `text` payload verbatim. The trailing `url=` is kept empty
+    // so the share endpoint still matches the canonical share URL
+    // pattern that some Telegram surfaces require.
+    const message = `${inviteText}\n${shareUrl}`;
+    return `https://t.me/share/url?url=&text=${encodeURIComponent(message)}`;
   }, [shareUrl, inviteText]);
 
   const handleCopy = async () => {
