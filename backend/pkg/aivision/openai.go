@@ -309,41 +309,88 @@ func buildUserPrompt(documentType, expectedName string) string {
 		b.WriteString("\nОчікуване ім'я власника: ")
 		b.WriteString(expectedName)
 	}
-	b.WriteString("\n\nПоверни рівно один JSON-об'єкт з ключами: decision (\"match\"|\"no_match\"|\"unreadable\"), confidence (0..1), extracted_name (string), extracted_id (string), notes (string).")
+	b.WriteString("\n\nПоверни рівно один JSON-об'єкт. Включи: is_valid (bool) або decision (\"match\"|\"no_match\"|\"unreadable\"); confidence (\"low\"|\"medium\"|\"high\" або 0..1); full_name з підполями surname та given_name (без по батькові, в оригіналі), або extracted_name; reason або notes (коротке пояснення).")
 	return b.String()
 }
 
 func parseAssistantResponse(text string) *Result {
 	clean := stripCodeFence(strings.TrimSpace(text))
-	var parsed struct {
-		Decision      string  `json:"decision"`
-		Confidence    float64 `json:"confidence"`
-		ExtractedName string  `json:"extracted_name"`
-		ExtractedID   string  `json:"extracted_id"`
-		Notes         string  `json:"notes"`
-	}
-	if err := json.Unmarshal([]byte(clean), &parsed); err != nil {
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(clean), &raw); err != nil {
 		return &Result{
 			Decision: "unreadable",
 			Notes:    "could not parse assistant response: " + truncate(text, 200),
 		}
 	}
-	if parsed.Decision != "match" && parsed.Decision != "no_match" && parsed.Decision != "unreadable" {
-		parsed.Decision = "unreadable"
+
+	res := &Result{}
+
+	if d, ok := raw["decision"].(string); ok && d != "" {
+		res.Decision = d
+	} else if v, ok := raw["is_valid"].(bool); ok {
+		if v {
+			res.Decision = "match"
+		} else {
+			res.Decision = "no_match"
+		}
+	} else {
+		res.Decision = "unreadable"
 	}
-	if parsed.Confidence < 0 {
-		parsed.Confidence = 0
+	if res.Decision != "match" && res.Decision != "no_match" && res.Decision != "unreadable" {
+		res.Decision = "unreadable"
 	}
-	if parsed.Confidence > 1 {
-		parsed.Confidence = 1
+
+	switch c := raw["confidence"].(type) {
+	case float64:
+		res.Confidence = c
+	case string:
+		switch strings.ToLower(c) {
+		case "high":
+			res.Confidence = 0.95
+		case "medium":
+			res.Confidence = 0.75
+		case "low":
+			res.Confidence = 0.5
+		}
 	}
-	return &Result{
-		Decision:      parsed.Decision,
-		Confidence:    parsed.Confidence,
-		ExtractedName: parsed.ExtractedName,
-		ExtractedID:   parsed.ExtractedID,
-		Notes:         parsed.Notes,
+	if res.Confidence < 0 {
+		res.Confidence = 0
 	}
+	if res.Confidence > 1 {
+		res.Confidence = 1
+	}
+
+	if fn, ok := raw["full_name"].(map[string]any); ok {
+		if s, ok := fn["surname"].(string); ok {
+			res.Surname = strings.TrimSpace(s)
+		}
+		if g, ok := fn["given_name"].(string); ok {
+			res.GivenName = strings.TrimSpace(g)
+		}
+		var parts []string
+		if res.GivenName != "" {
+			parts = append(parts, res.GivenName)
+		}
+		if res.Surname != "" {
+			parts = append(parts, res.Surname)
+		}
+		res.ExtractedName = strings.Join(parts, " ")
+	}
+	if res.ExtractedName == "" {
+		if en, ok := raw["extracted_name"].(string); ok {
+			res.ExtractedName = strings.TrimSpace(en)
+		}
+	}
+
+	if id, ok := raw["extracted_id"].(string); ok {
+		res.ExtractedID = id
+	}
+	if notes, ok := raw["notes"].(string); ok && notes != "" {
+		res.Notes = notes
+	} else if reason, ok := raw["reason"].(string); ok {
+		res.Notes = reason
+	}
+	return res
 }
 
 func stripCodeFence(s string) string {

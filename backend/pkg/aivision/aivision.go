@@ -6,6 +6,8 @@ type Result struct {
 	Decision      string
 	Confidence    float64
 	ExtractedName string
+	Surname       string
+	GivenName     string
 	ExtractedID   string
 	Notes         string
 }

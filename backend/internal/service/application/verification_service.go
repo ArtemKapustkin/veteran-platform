@@ -94,6 +94,7 @@ func (s *VerificationService) Submit(ctx context.Context, veteranID uuid.UUID, d
 	attempts := make([]*model.VerificationAttempt, 0, len(files))
 	bestDecision := "no_match"
 	bestConfidence := 0.0
+	bestExtractedName := ""
 
 	for _, f := range files {
 		result, err := s.verifier.Verify(ctx, f.Bytes, f.Mime, documentType, expectedName)
@@ -126,6 +127,9 @@ func (s *VerificationService) Submit(ctx context.Context, veteranID uuid.UUID, d
 		if result.Decision == "match" && result.Confidence > bestConfidence {
 			bestConfidence = result.Confidence
 			bestDecision = "match"
+			if result.ExtractedName != "" {
+				bestExtractedName = result.ExtractedName
+			}
 		}
 	}
 
@@ -147,13 +151,15 @@ func (s *VerificationService) Submit(ctx context.Context, veteranID uuid.UUID, d
 				return err
 			}
 		}
-		_, err := tx.NewUpdate().
+		upd := tx.NewUpdate().
 			Model((*model.Veteran)(nil)).
 			Set("verification_status = ?", finalStatus).
 			Set("verified = ?", finalVerified).
-			Set("updated_at = ?", now).
-			Where("id = ?", veteranID).
-			Exec(ctx)
+			Set("updated_at = ?", now)
+		if finalVerified && bestExtractedName != "" {
+			upd = upd.Set("fullname = ?", bestExtractedName)
+		}
+		_, err := upd.Where("id = ?", veteranID).Exec(ctx)
 		return err
 	})
 	if err != nil {
