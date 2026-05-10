@@ -99,6 +99,15 @@ export const UserIcon = makeIcon(() => (
   </>
 ));
 
+export const UsersIcon = makeIcon(() => (
+  <>
+    <circle cx="9" cy="9" r="3.2" />
+    <path d="M3 20c1.1-3.4 3.5-5 6-5s4.9 1.6 6 5" />
+    <circle cx="16.5" cy="10" r="2.4" />
+    <path d="M14.7 14.5c2.1-.1 3.7 1 4.6 3" />
+  </>
+));
+
 export const CloseIcon = makeIcon(() => (
   <path d="M6 6l12 12M18 6L6 18" />
 ));

@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
 import { PhoneIcon, UserIcon } from "@/components/icons";
-import { useLoginPromptStore } from "@/lib/useLoginPrompt";
 
 /**
  * Shown to unauthenticated visitors on /account, and as a fallback when
@@ -14,7 +13,7 @@ export function AccountGuest() {
   const router = useRouter();
 
   const handleLogin = () => {
-    useLoginPromptStore.getState().open();
+    router.push("/login?next=%2Faccount");
   };
 
   const handleSkip = () => {

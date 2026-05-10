@@ -102,13 +102,24 @@ export const STEPS: readonly FormStep[] = [
 export interface EventDraft {
   title: string;
   catId: FormCategoryId;
+  /** ISO `YYYY-MM-DD` from <input type="date">. */
   date: string;
+  /** `HH:MM` from <input type="time">. */
   time: string;
   duration: string;
   place: string;
   region: string;
+  /** Optional lat/lng picked from the map. Both null until the user picks. */
+  lat: number | null;
+  lng: number | null;
   desc: string;
   cover: PhotoTone;
+  /**
+   * URL of an uploaded cover photo (returned from `/me/uploads/event-cover`).
+   * When set, the preview and saved event use the photo instead of the
+   * tone-only gradient. `null` until the user uploads.
+   */
+  coverUrl: string | null;
   capacity: string;
   quota: string;
   audience: string;
@@ -125,8 +136,11 @@ export const DEFAULT_DRAFT: EventDraft = {
   duration: "",
   place: "",
   region: "",
+  lat: null,
+  lng: null,
   desc: "",
   cover: "cream",
+  coverUrl: null,
   capacity: "",
   quota: "",
   audience: "",
@@ -189,4 +203,22 @@ export function previewCount(draft: EventDraft): number {
   const cap = previewCapacity(draft);
   if (cap == null) return 0;
   return Math.min(3, cap);
+}
+
+/**
+ * Format the draft's ISO date into the same short Ukrainian label the cards
+ * show (e.g. "пт, 15 трав"). Empty input → empty string so the preview can
+ * fall back to a placeholder.
+ */
+export function previewDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d
+    .toLocaleDateString("uk-UA", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    })
+    .replace(/\.$/, "");
 }

@@ -27,6 +27,22 @@ export const eventsApi = {
   create: (payload: EventCreatePayload) =>
     api.post<ApiEventDetail>("/api/v1/events", payload),
 
+  /**
+   * Upload an event cover photo. Veteran-only — backend stores the file
+   * via the configured uploader (local in dev, GCS in prod) and returns
+   * a public URL. Field name must be `file`; allowed types: jpg/png/webp;
+   * max size 10MB (mirrors `backend/internal/http_handler/upload_handler.go`).
+   */
+  uploadCover: (file: File, signal?: AbortSignal) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.postForm<{ url: string }>(
+      "/api/v1/me/uploads/event-cover",
+      fd,
+      { signal },
+    );
+  },
+
   // Registrations
   register: (eventId: string, payload: RegistrationCreate) =>
     api.post<Registration>(`/api/v1/events/${eventId}/registrations`, payload),

@@ -24,10 +24,12 @@ type Location struct {
 }
 
 // EventAttendee is the public, privacy-respecting summary of someone who's
-// going to an event — enough to render an avatar circle and a first-name
-// line ("Іван"), without exposing phone, full last name, or brigade.
+// going to an event — enough to render an avatar circle (two uppercase
+// initials, e.g. "ІП") and a first-name line ("Іван"), without exposing
+// phone, brigade, or the full surname.
 type EventAttendee struct {
 	VeteranID      uuid.UUID `json:"veteran_id"`
+	// Up to two uppercase initials from the attendee's full name.
 	Initial        string    `json:"initial"`
 	FirstName      string    `json:"first_name,omitempty"`
 	AudienceStatus string    `json:"audience_status,omitempty"`

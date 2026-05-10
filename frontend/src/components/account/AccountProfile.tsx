@@ -57,7 +57,15 @@ export function AccountProfile() {
   const displayName =
     veteran?.fullname?.trim() ||
     (role === "admin" ? "Адмін" : "Ветеран");
-  const initial = displayName.charAt(0).toUpperCase() || "С";
+  // Two-letter initials from the full name ("Іван Петренко" → "ІП"). Falls
+  // back to the first letter when only one token is available.
+  const initial =
+    displayName
+      .split(/\s+/u)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((tok) => tok.charAt(0).toUpperCase())
+      .join("") || "С";
 
   const cityLabel = veteran?.city ? `${veteran.city} · ` : "";
   const joinedLabel = veteran?.created_at

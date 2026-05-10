@@ -112,11 +112,13 @@ export interface Location {
 }
 
 // Privacy-respecting summary of a confirmed/pending attendee. Only what
-// we'd show in a public avatar circle: an initial, an optional first name,
-// and the audience bucket (so the UI can colour-tone female-vet vs family
-// vs active-military differently if it wants to).
+// we'd show in a public avatar circle: up to two uppercase initials (first
+// name + surname, e.g. "ІП"), an optional first name, and the audience
+// bucket (so the UI can colour-tone female-vet vs family vs active-military
+// differently if it wants to).
 export interface ApiEventAttendee {
   veteran_id: string;
+  /** Up to two uppercase initials, e.g. "ІП" for "Іван Петренко". */
   initial: string;
   first_name?: string;
   audience_status?: AudienceStatus;

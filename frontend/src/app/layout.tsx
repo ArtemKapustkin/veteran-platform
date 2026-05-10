@@ -5,7 +5,6 @@ import { ResponsiveStage } from "@/components/ResponsiveStage";
 import { A11yBoot } from "@/components/A11yBoot";
 import { SessionBoot } from "@/components/SessionBoot";
 import { ToastHost } from "@/components/atoms/Toast";
-import { LoginPromptDialog } from "@/components/sheets/LoginPromptDialog";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -39,7 +38,6 @@ export default function RootLayout({
         <A11yBoot />
         <SessionBoot />
         <ResponsiveStage>{children}</ResponsiveStage>
-        <LoginPromptDialog />
         <ToastHost />
       </body>
     </html>

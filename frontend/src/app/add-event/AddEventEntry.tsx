@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ViewportSwitch } from "@/components/ViewportSwitch";
 import { AddEventDesktop } from "@/components/add-event/AddEventDesktop";
 import { AddEventMobile } from "@/components/add-event/AddEventMobile";
@@ -13,7 +14,8 @@ import {
 } from "@/components/add-event/draft";
 import { ApiError } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { useLoginPromptStore } from "@/lib/useLoginPrompt";
+
+const LOGIN_URL = "/login?next=%2Fadd-event";
 
 /**
  * Top-level orchestrator for the organizer flow.
@@ -26,6 +28,7 @@ import { useLoginPromptStore } from "@/lib/useLoginPrompt";
  *   success screen can deep-link the organizer to the moderation queue.
  */
 export function AddEventEntry() {
+  const router = useRouter();
   const isAuthed = useAuthStore((s) => s.loggedIn);
   const [draft, setDraft] = useState<EventDraft>(() => makeDraft());
   const [step, setStep] = useState<FormStep["id"]>(1);
@@ -34,9 +37,9 @@ export function AddEventEntry() {
 
   const onSubmit = async () => {
     if (!isAuthed) {
-      // Veteran-only endpoint — surface the global login modal so the
-      // user can authenticate without leaving this draft.
-      useLoginPromptStore.getState().open("Щоб опублікувати подію");
+      // Veteran-only endpoint — bounce through the dedicated /login flow
+      // so the user can authenticate (and verify) before publishing.
+      router.push(LOGIN_URL);
       return;
     }
     setSubmitting(true);
@@ -45,7 +48,7 @@ export function AddEventEntry() {
       setSubmittedDraft(snapshot(draft));
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        useLoginPromptStore.getState().open("Щоб опублікувати подію");
+        router.push(LOGIN_URL);
         return;
       }
       const detail =

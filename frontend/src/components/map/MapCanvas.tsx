@@ -1,6 +1,10 @@
 "use client";
 
-import { Map, type MapRef } from "react-map-gl/maplibre";
+import {
+  Map,
+  type MapLayerMouseEvent,
+  type MapRef,
+} from "react-map-gl/maplibre";
 import {
   forwardRef,
   useCallback,
@@ -23,6 +27,11 @@ export interface MapCanvasProps {
   interactive?: boolean;
   className?: string;
   children?: ReactNode;
+  /**
+   * Click on the map canvas (background, not a marker). Used by the
+   * /add-event location picker to drop / move a marker on tap.
+   */
+  onClick?: (e: MapLayerMouseEvent) => void;
 }
 
 export const MapCanvas = forwardRef<MapRef, MapCanvasProps>(function MapCanvas(
@@ -35,6 +44,7 @@ export const MapCanvas = forwardRef<MapRef, MapCanvasProps>(function MapCanvas(
     interactive = true,
     className,
     children,
+    onClick,
   },
   forwardedRef,
 ) {
@@ -125,6 +135,7 @@ export const MapCanvas = forwardRef<MapRef, MapCanvasProps>(function MapCanvas(
         keyboard={interactive}
         touchZoomRotate={interactive}
         onLoad={handleLoad}
+        onClick={onClick}
         style={{ width: "100%", height: "100%" }}
       >
         {children}

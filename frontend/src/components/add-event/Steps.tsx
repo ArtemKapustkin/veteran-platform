@@ -19,6 +19,7 @@ import {
   FormInput,
   FormTextarea,
 } from "./FormPrimitives";
+import { LocationPicker } from "./LocationPicker";
 
 type DraftSetter = Dispatch<SetStateAction<EventDraft>>;
 
@@ -46,7 +47,12 @@ export function Step1Basic({ draft, set }: StepProps) {
   return (
     <div className="flex flex-col gap-6">
       <FormFieldGroup label="Обкладинка">
-        <CoverPicker value={draft.cover} onChange={u("cover")} />
+        <CoverPicker
+          tone={draft.cover}
+          imageUrl={draft.coverUrl}
+          onToneChange={u("cover")}
+          onImageChange={u("coverUrl")}
+        />
       </FormFieldGroup>
 
       <FormFieldGroup label="Назва події" required htmlFor="ae-title">
@@ -70,27 +76,40 @@ export function Step1Basic({ draft, set }: StepProps) {
         <FormFieldGroup label="Дата" required htmlFor="ae-date">
           <FormInput
             id="ae-date"
+            type="date"
             value={draft.date}
             onChange={u("date")}
-            placeholder="Пт, 15 трав"
           />
         </FormFieldGroup>
         <FormFieldGroup label="Час" required htmlFor="ae-time">
           <FormInput
             id="ae-time"
+            type="time"
             value={draft.time}
             onChange={u("time")}
-            placeholder="19:00"
           />
         </FormFieldGroup>
       </div>
 
-      <FormFieldGroup label="Місце" required htmlFor="ae-place">
-        <FormInput
-          id="ae-place"
-          value={draft.place}
-          onChange={u("place")}
-          placeholder="Кінотеатр Жовтень, Поділ"
+      <FormFieldGroup
+        label="Місце"
+        required
+        htmlFor="ae-place"
+        hint="Почни вводити адресу — підкаже з OpenStreetMap. На карті можна перетягнути точку."
+      >
+        <LocationPicker
+          place={draft.place}
+          lat={draft.lat}
+          lng={draft.lng}
+          onChange={(next) =>
+            set((s) => ({
+              ...s,
+              place: next.place,
+              lat: next.lat,
+              lng: next.lng,
+            }))
+          }
+          inputId="ae-place"
         />
       </FormFieldGroup>
 

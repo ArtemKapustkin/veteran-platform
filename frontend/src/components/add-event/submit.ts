@@ -113,13 +113,17 @@ export function draftToCreatePayload(draft: EventDraft): EventCreatePayload {
     .filter((tag): tag is AccessibilityTag => Boolean(tag));
 
   const district = REGION_MAP[draft.region];
-  const location = draft.place || draft.region
-    ? {
-        city: "Київ",
-        district,
-        address: draft.place || undefined,
-      }
-    : undefined;
+  const hasCoords = draft.lat != null && draft.lng != null;
+  const location =
+    draft.place || draft.region || hasCoords
+      ? {
+          city: "Київ",
+          district,
+          address: draft.place || undefined,
+          lat: draft.lat ?? undefined,
+          lng: draft.lng ?? undefined,
+        }
+      : undefined;
 
   return {
     category: CATEGORY_MAP[draft.catId] ?? "social",
@@ -134,6 +138,7 @@ export function draftToCreatePayload(draft: EventDraft): EventCreatePayload {
     accessibility_tags: accessibility,
     verified_only: false,
     location,
+    cover_image_url: draft.coverUrl ?? undefined,
   };
 }
 

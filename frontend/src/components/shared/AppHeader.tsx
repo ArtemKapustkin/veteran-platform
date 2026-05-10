@@ -1,26 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { AccessIcon } from "@/components/icons";
+import { Avatar } from "@/components/atoms/Avatar";
+import { UserIcon } from "@/components/icons";
+import { useAuthStore } from "@/lib/store";
+import { useMounted } from "@/lib/useMounted";
 
-export function AppHeader({
-  pulse = false,
-  onOpenAccess,
-}: {
-  pulse?: boolean;
-  onOpenAccess?: () => void;
-}) {
-  const router = useRouter();
-  const handleAccess = () => {
-    if (onOpenAccess) {
-      onOpenAccess();
-      return;
-    }
-    const url = new URL(window.location.href);
-    url.searchParams.set("a11y", "1");
-    router.push(url.pathname + url.search, { scroll: false });
-  };
+/**
+ * Mobile top chrome — logo on the left, account chip on the right.
+ *
+ * The accessibility entry point lives in `BottomToolbar` ("Меню") instead
+ * of the header so the header stays focused on identity (who am I logged
+ * in as?) while the bottom nav owns global utilities.
+ *
+ * The chip always links to `/account`. Logged-in users see their initials
+ * (e.g. "ІП" for "Іван Петренко") plus their first name; guests see a
+ * generic user icon + "Увійти", and `/account` falls through to
+ * `AccountGuest` which prompts the SMS login flow.
+ */
+export function AppHeader() {
+  const mounted = useMounted();
+  const loggedIn = useAuthStore((s) => s.loggedIn);
+  const veteran = useAuthStore((s) => s.veteran);
+  const role = useAuthStore((s) => s.role);
+  // Defer the auth-derived UI until after hydration so SSR and the first
+  // client paint stay in sync (matches BottomToolbar's pattern).
+  const isLoggedIn = mounted && loggedIn;
+
+  const fullName =
+    (isLoggedIn && veteran?.fullname?.trim()) ||
+    (isLoggedIn && role === "admin" ? "Адмін" : "");
+  const firstName = fullName ? fullName.split(/\s+/u)[0] : "";
+  const initials = fullName
+    ? fullName
+        .split(/\s+/u)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((tok) => tok.charAt(0).toUpperCase())
+        .join("") || "С"
+    : "";
 
   return (
     <div className="flex items-center justify-between px-4 py-2">
@@ -43,24 +61,39 @@ export function AppHeader({
           Свої поруч
         </span>
       </Link>
-      <button
-        type="button"
-        onClick={handleAccess}
-        aria-label="Доступність — налаштування інклюзивності"
-        title="Доступність"
-        className="border-primary bg-primary-soft text-primary-ink relative flex h-11 items-center gap-1.5 rounded-full border-2 pl-2.5 pr-3.5 shadow-soft active:brightness-95"
-        style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.005em" }}
-      >
-        <AccessIcon size={20} sw={2} />
-        <span>Доступність</span>
-        {pulse ? (
-          <span
-            aria-hidden
-            className="border-primary pointer-events-none absolute -inset-0.5 rounded-full border-2"
-            style={{ animation: "var(--animate-pulse-ring)" }}
-          />
-        ) : null}
-      </button>
+
+      {isLoggedIn ? (
+        <Link
+          href="/account"
+          aria-label={firstName ? `Мій акаунт — ${firstName}` : "Мій акаунт"}
+          className="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 active:brightness-95"
+          style={{ background: "#F8F6F1" }}
+        >
+          <Avatar initial={initials} tone="sand" size={28} ring="#F8F6F1" />
+          {firstName ? (
+            <span
+              className="text-text max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap"
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: "-0.005em",
+              }}
+            >
+              {firstName}
+            </span>
+          ) : null}
+        </Link>
+      ) : (
+        <Link
+          href="/account"
+          aria-label="Увійти в акаунт"
+          className="border-primary bg-primary-soft text-primary-ink flex h-11 items-center gap-1.5 rounded-full border-2 pl-2.5 pr-3.5 shadow-soft active:brightness-95"
+          style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.005em" }}
+        >
+          <UserIcon size={18} />
+          <span>Увійти</span>
+        </Link>
+      )}
     </div>
   );
 }

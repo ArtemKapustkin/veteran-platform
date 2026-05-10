@@ -146,6 +146,33 @@ export async function logoutCurrentUser(): Promise<void> {
   }
 }
 
+// Alias kept short for the verification flow callers.
+export const logout = logoutCurrentUser;
+
+// ─── Post-login routing gate ────────────────────────────────
+//
+// Used by the /login wizard and SessionBoot to decide whether the user
+// can proceed into the app or has to land on the document-upload /
+// pending-review step. Centralised so both call sites stay in sync.
+
+export type PostLoginGate = "ok" | "needs_documents" | "needs_review";
+
+export function gateFor(
+  veteran: Veteran | null,
+  role: "veteran" | "admin" | null,
+): PostLoginGate {
+  // Admins skip verification entirely; their /me row may not have the
+  // verification fields populated.
+  if (role === "admin") return "ok";
+  if (!veteran) return "needs_documents";
+  if (veteran.verified) return "ok";
+  if (veteran.verification_status === "none") return "needs_documents";
+  // `processing` and `rejected` both surface as a "pending review" wall.
+  // Even an AI rejection is treated as queued for an admin so the user
+  // doesn't loop on retries (admin can flip to approved in the back-office).
+  return "needs_review";
+}
+
 /**
  * Fetch the current veteran profile and store it. Called from app boot so
  * the account screen has fresh data on reload, and after any verification

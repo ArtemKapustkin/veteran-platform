@@ -130,7 +130,7 @@ export function AddEventDesktop({
                 textTransform: "uppercase",
               }}
             >
-              Превʼю · сторінка події
+              Превʼю · картка у списку
             </span>
             <Pill color="grey">live</Pill>
           </header>

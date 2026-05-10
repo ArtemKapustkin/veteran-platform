@@ -5,7 +5,6 @@ import { useRouter, usePathname } from "next/navigation";
 import { Avatar } from "@/components/atoms/Avatar";
 import { AccessIcon } from "@/components/icons";
 import { useAuthStore } from "@/lib/store";
-import { useLoginPromptStore } from "@/lib/useLoginPrompt";
 import { useMounted } from "@/lib/useMounted";
 
 function NavTab({
@@ -163,14 +162,13 @@ export function DesktopNav() {
           </span>
         </Link>
       ) : (
-        <button
-          type="button"
-          onClick={() => useLoginPromptStore.getState().open()}
+        <Link
+          href="/login"
           className="bg-primary inline-flex items-center justify-center rounded-[10px] px-4.5 py-2.5 text-white shadow-[0_1px_2px_rgba(31,77,52,0.22)] hover:brightness-[1.04]"
           style={{ fontSize: 14, fontWeight: 500, letterSpacing: "-0.005em" }}
         >
           Увійти
-        </button>
+        </Link>
       )}
     </header>
   );

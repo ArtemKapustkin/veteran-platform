@@ -5,7 +5,6 @@ import { Btn } from "@/components/atoms/Btn";
 import { ArrowIcon, PhoneIcon } from "@/components/icons";
 import { Overlays } from "@/components/sheets/Overlays";
 import { useAuthStore } from "@/lib/store";
-import { useLoginPromptStore } from "@/lib/useLoginPrompt";
 import { useMounted } from "@/lib/useMounted";
 import { DesktopNav } from "./DesktopNav";
 
@@ -59,14 +58,16 @@ export function LandingDesktop() {
               </Btn>
             </Link>
             {!isLoggedIn ? (
-              <Btn
-                kind="secondary"
-                size="lg"
-                icon={<PhoneIcon size={16} />}
-                onClick={() => useLoginPromptStore.getState().open()}
-              >
-                Увійти через SMS
-              </Btn>
+              <Link href="/login" aria-label="Увійти через SMS">
+                <Btn
+                  kind="secondary"
+                  size="lg"
+                  icon={<PhoneIcon size={16} />}
+                  asLink
+                >
+                  Увійти через SMS
+                </Btn>
+              </Link>
             ) : null}
           </div>
           <div

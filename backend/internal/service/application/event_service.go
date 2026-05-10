@@ -255,7 +255,7 @@ func (s *EventService) attachAttendees(ctx context.Context, items []*view.Event)
 		}
 		ev.Attendees = append(ev.Attendees, view.EventAttendee{
 			VeteranID:      row.VeteranID,
-			Initial:        firstInitial(row.Fullname),
+			Initial:        nameInitials(row.Fullname),
 			FirstName:      firstName(row.Fullname),
 			AudienceStatus: row.AudienceStatus,
 		})
@@ -442,9 +442,11 @@ func mapPage(rows []model.Event) *view.EventPage {
 	}
 }
 
-// firstInitial returns the uppercase first letter of the fullname, or "С"
-// (for "Свій") as a generic fallback so we never render an empty avatar.
-func firstInitial(fullname *string) string {
+// nameInitials returns up to two uppercase initials from the fullname —
+// the first letter of the first whitespace-separated token plus the first
+// letter of the next token, so "Іван Петренко" → "ІП". Falls back to "С"
+// (for "Свій") so we never render an empty avatar.
+func nameInitials(fullname *string) string {
 	if fullname == nil {
 		return "С"
 	}
@@ -452,8 +454,25 @@ func firstInitial(fullname *string) string {
 	if trimmed == "" {
 		return "С"
 	}
-	r, _ := utf8.DecodeRuneInString(trimmed)
-	return string(unicode.ToUpper(r))
+	var b strings.Builder
+	atWordStart := true
+	for _, r := range trimmed {
+		if unicode.IsSpace(r) {
+			atWordStart = true
+			continue
+		}
+		if atWordStart {
+			b.WriteRune(unicode.ToUpper(r))
+			atWordStart = false
+			if utf8.RuneCountInString(b.String()) >= 2 {
+				break
+			}
+		}
+	}
+	if b.Len() == 0 {
+		return "С"
+	}
+	return b.String()
 }
 
 // firstName returns the first whitespace-separated token of the full name

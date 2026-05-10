@@ -17,6 +17,7 @@ export function Photo({
   height = 180,
   radius = 16,
   fill = false,
+  imageUrl,
   className,
   style,
   alt,
@@ -27,6 +28,11 @@ export function Photo({
   radius?: number;
   /** Fill the parent (position: absolute, inset: 0). Useful for cards with aspect-ratio. */
   fill?: boolean;
+  /**
+   * If provided, render this image (cover-fit) on top of the tone gradient.
+   * The gradient stays as a fallback background while the image loads.
+   */
+  imageUrl?: string | null;
   className?: string;
   style?: CSSProperties;
   alt?: string;
@@ -48,15 +54,29 @@ export function Photo({
         ...style,
       }}
     >
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "repeating-linear-gradient(115deg, transparent 0 22px, rgba(255,255,255,0.18) 22px 23px)",
-        }}
-      />
+      {imageUrl ? (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `url("${imageUrl}")`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+      ) : null}
+      {!imageUrl ? (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "repeating-linear-gradient(115deg, transparent 0 22px, rgba(255,255,255,0.18) 22px 23px)",
+          }}
+        />
+      ) : null}
       {label ? (
         <div
           aria-hidden

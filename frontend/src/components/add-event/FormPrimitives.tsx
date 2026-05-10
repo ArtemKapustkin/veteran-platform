@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { CheckIcon, PlusIcon } from "@/components/icons";
+import { useRef, useState, type ReactNode } from "react";
+import { CheckIcon, CloseIcon, PlusIcon } from "@/components/icons";
 import { Photo, type PhotoTone } from "@/components/atoms/Photo";
+import { eventsApi, ApiError } from "@/lib/api";
 import { COVER_TONES } from "./draft";
 
 // ─── Label / FieldGroup ──────────────────────────────
@@ -216,57 +217,183 @@ export function FormChips(props: FormChipsProps) {
 
 // ─── Cover picker ─────────────────────────────────────
 //
-// Upload is intentionally a placeholder — clicking the dashed frame doesn't
-// open a file dialog yet. The tone swatches below are functional and feed
-// the live preview's photo gradient.
+// Click the dashed frame to open a file picker; the chosen file is uploaded
+// straight away to `POST /api/v1/me/uploads/event-cover` and the returned
+// URL is stored on the draft (`coverUrl`). Swatches below stay live so the
+// organiser can pick a fallback tone for templates that don't have a photo.
+
+const COVER_ACCEPT = "image/jpeg,image/png,image/webp";
+const COVER_MAX_BYTES = 10 * 1024 * 1024;
 
 export function CoverPicker({
-  value,
-  onChange,
+  tone,
+  imageUrl,
+  onToneChange,
+  onImageChange,
 }: {
-  value: PhotoTone;
-  onChange: (next: PhotoTone) => void;
+  tone: PhotoTone;
+  imageUrl: string | null;
+  onToneChange: (next: PhotoTone) => void;
+  onImageChange: (next: string | null) => void;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const openPicker = () => {
+    if (busy) return;
+    setError(null);
+    fileRef.current?.click();
+  };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset the native input so picking the same file twice in a row still
+    // fires `change` (browsers dedupe identical selections otherwise).
+    e.target.value = "";
+    if (!file) return;
+    if (!COVER_ACCEPT.split(",").includes(file.type)) {
+      setError("Підтримуємо JPG, PNG, WEBP");
+      return;
+    }
+    if (file.size > COVER_MAX_BYTES) {
+      setError(`Файл завеликий — максимум ${COVER_MAX_BYTES / 1024 / 1024} МБ`);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { url } = await eventsApi.uploadCover(file);
+      onImageChange(url);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setError("Спочатку увійди — фото можуть завантажувати лише ветерани");
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Не вдалось завантажити фото",
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removePhoto = () => {
+    setError(null);
+    onImageChange(null);
+  };
+
   return (
     <div>
-      <div
-        role="img"
-        aria-label="Обкладинка події"
-        className="border-border relative w-full overflow-hidden rounded-[14px] border border-dashed"
+      <button
+        type="button"
+        onClick={openPicker}
+        aria-label={
+          imageUrl ? "Змінити фото обкладинки" : "Завантажити фото обкладинки"
+        }
+        disabled={busy}
+        className="border-border relative block w-full overflow-hidden rounded-[14px] border border-dashed"
         style={{ aspectRatio: "4 / 3", background: "#FBFAF6" }}
       >
-        <Photo tone={value} fill radius={0} alt="" />
-        <div
-          className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"
+        <Photo tone={tone} fill radius={0} imageUrl={imageUrl} alt="" />
+        {!imageUrl && !busy ? (
+          <div
+            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"
+            style={{
+              color: "rgba(58,35,11,0.7)",
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-xl backdrop-blur-sm"
+              style={{ background: "rgba(255,255,255,0.7)" }}
+            >
+              <PlusIcon size={22} />
+            </div>
+            Завантажити фото · опційно
+          </div>
+        ) : null}
+        {busy ? (
+          <div
+            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"
+            style={{
+              background: "rgba(255,255,255,0.7)",
+              color: "var(--color-text)",
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            <Spinner />
+            Завантажуємо…
+          </div>
+        ) : null}
+        {imageUrl && !busy ? (
+          <span
+            aria-hidden
+            className="absolute left-2.5 bottom-2.5 rounded-[8px] px-2 py-1 backdrop-blur-md"
+            style={{
+              background: "rgba(255,255,255,0.92)",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--color-text)",
+              letterSpacing: "-0.005em",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+            }}
+          >
+            Змінити
+          </span>
+        ) : null}
+      </button>
+
+      {imageUrl && !busy ? (
+        <button
+          type="button"
+          onClick={removePhoto}
+          aria-label="Видалити завантажене фото"
+          className="mt-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors"
           style={{
-            color: "rgba(58,35,11,0.7)",
-            fontSize: 13,
+            background: "transparent",
+            color: "var(--color-text2)",
+            fontSize: 12,
             fontWeight: 500,
           }}
         >
-          <div
-            className="flex h-12 w-12 items-center justify-center rounded-xl backdrop-blur-sm"
-            style={{ background: "rgba(255,255,255,0.7)" }}
-          >
-            <PlusIcon size={22} />
-          </div>
-          Завантажити фото · опційно
-        </div>
-      </div>
+          <CloseIcon size={12} />
+          Прибрати фото
+        </button>
+      ) : null}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept={COVER_ACCEPT}
+        onChange={onFile}
+        className="sr-only"
+      />
+
+      {error ? (
+        <p
+          className="mt-1.5 m-0"
+          style={{ fontSize: 12, color: "#C04848", lineHeight: 1.4 }}
+        >
+          {error}
+        </p>
+      ) : null}
 
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        {COVER_TONES.map((tone) => {
-          const active = value === tone;
+        {COVER_TONES.map((t) => {
+          const active = tone === t;
           return (
             <button
-              key={tone}
+              key={t}
               type="button"
-              onClick={() => onChange(tone)}
-              aria-label={`Тон обкладинки: ${tone}`}
+              onClick={() => onToneChange(t)}
+              aria-label={`Тон обкладинки: ${t}`}
               aria-pressed={active}
               className="h-9 w-9 flex-shrink-0 rounded-[10px] box-border transition-all"
               style={{
-                background: TONE_SWATCH[tone],
+                background: TONE_SWATCH[t],
                 border: active
                   ? "2px solid var(--color-primary)"
                   : "1px solid var(--color-border-soft)",
@@ -274,14 +401,25 @@ export function CoverPicker({
             />
           );
         })}
-        <span
-          className="text-text-muted self-center"
-          style={{ fontSize: 12, marginLeft: 4 }}
-        >
-          або обери тон
-        </span>
       </div>
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 22,
+        height: 22,
+        border: "2px solid rgba(58,35,11,0.18)",
+        borderTopColor: "var(--color-primary)",
+        borderRadius: "50%",
+        display: "inline-block",
+        animation: "spin 0.85s linear infinite",
+      }}
+    />
   );
 }
 

@@ -170,11 +170,18 @@ function pickTone(initial: string, audience?: AudienceStatus): AvatarTone {
 }
 
 function attendeeToPerson(a: ApiEventAttendee): Person {
-  const initial = (a.initial || "С").charAt(0).toUpperCase();
+  // Backend ships up to two uppercase letters (first name + surname). We
+  // preserve them as-is for the avatar circle, but key the colour tone off
+  // the first letter so a person's hue stays stable if their surname ever
+  // changes.
+  const raw = (a.initial || "С").trim().toUpperCase();
+  const initial = Array.from(raw).slice(0, 2).join("") || "С";
+  const firstChar = Array.from(initial)[0] ?? "С";
   return {
     initial,
-    tone: pickTone(initial, a.audience_status),
-    name: a.first_name || initial,
+    tone: pickTone(firstChar, a.audience_status),
+    name: a.first_name || firstChar,
+    surname: "",
   };
 }
 

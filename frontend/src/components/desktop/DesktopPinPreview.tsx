@@ -1,27 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Btn } from "@/components/atoms/Btn";
 import { CounterBlock } from "@/components/shared/CounterBlock";
 import { SeatBar } from "@/components/shared/SeatBar";
-import { CheckIcon, CloseIcon } from "@/components/icons";
+import { ArrowIcon, CloseIcon } from "@/components/icons";
 import type { AppEvent } from "@/data/events";
-import { useEventsStore } from "@/lib/store";
-import { useAuthGuard } from "@/lib/useAuthGuard";
-import { useMounted } from "@/lib/useMounted";
-import { toast } from "@/lib/useToast";
 
 export function DesktopPinPreview({ event }: { event: AppEvent }) {
   const router = useRouter();
   const params = useSearchParams();
-  const mounted = useMounted();
-  const setRsvp = useEventsStore((s) => s.setRsvp);
-  const isRsvpReal = useEventsStore((s) => s.rsvpIds.includes(event.id));
-  const isRsvp = mounted && isRsvpReal;
-  const [rsvpPending, setRsvpPending] = useState(false);
-  const requireAuth = useAuthGuard();
+
+  // Mirrors the mobile `EventSheet`: the map-pin preview is intentionally a
+  // quick glance — title, meta, attendee count, and one CTA to the full
+  // event page. RSVP / group invites / Telegram share all live on
+  // /events/[id] so we don't duplicate state and auth-guard plumbing across
+  // two surfaces.
 
   const onClose = () => {
     const next = new URLSearchParams(params.toString());
@@ -31,24 +26,6 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
       window.location.pathname + (search ? "?" + search : ""),
       { scroll: false },
     );
-  };
-
-  const onRsvp = async () => {
-    if (rsvpPending) return;
-    if (!requireAuth({ hint: "Щоб записатись на подію" })) return;
-    setRsvpPending(true);
-    try {
-      await setRsvp(event.id, true);
-      const others = Math.max(0, event.count);
-      toast.success(
-        "Записали тебе!",
-        others > 0 ? `Разом із ${others} своїми.` : undefined,
-      );
-    } catch (e) {
-      toast.error("Не вдалось записатися", (e as Error).message);
-    } finally {
-      setRsvpPending(false);
-    }
   };
 
   return (
@@ -105,39 +82,20 @@ export function DesktopPinPreview({ event }: { event: AppEvent }) {
         <SeatBar taken={event.count} capacity={event.capacity} compact />
       ) : null}
 
-      {isRsvp ? (
-        <div
-          className="flex items-center justify-center gap-2 rounded-xl py-2"
-          style={{
-            background: "#E8F6EF",
-            border: "1px solid #BFE7CF",
-            color: "#0E6E45",
-            fontSize: 13,
-            fontWeight: 600,
-            animation: "var(--animate-pop-down)",
-          }}
+      <Link
+        href={`/events/${event.id}`}
+        aria-label={`Перейти до події «${event.title}»`}
+      >
+        <Btn
+          kind="primary"
+          size="md"
+          fullWidth
+          asLink
+          iconRight={<ArrowIcon size={16} />}
         >
-          <CheckIcon size={15} stroke="#0E6E45" />
-          Ти йдеш
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <Btn
-            kind="secondary"
-            size="md"
-            fullWidth
-            loading={rsvpPending}
-            onClick={onRsvp}
-          >
-            Я йду
-          </Btn>
-          <Link href={`/events/${event.id}`} className="flex-shrink-0">
-            <Btn kind="ghost" size="md" asLink>
-              Деталі
-            </Btn>
-          </Link>
-        </div>
-      )}
+          Перейти до події
+        </Btn>
+      </Link>
     </aside>
   );
 }
