@@ -43,14 +43,15 @@ export function CompanionInviteRow({
 
   const tgHref = useMemo(() => {
     if (!shareUrl) return "";
-    // Put the URL inline at the end of `text` (instead of passing it
-    // as `url=`) so we own every line break — Telegram clients vary
-    // in how they glue the two params together, but they all render
-    // the `text` payload verbatim. The trailing `url=` is kept empty
-    // so the share endpoint still matches the canonical share URL
-    // pattern that some Telegram surfaces require.
-    const message = `${inviteText}\n${shareUrl}`;
-    return `https://t.me/share/url?url=&text=${encodeURIComponent(message)}`;
+    // Telegram's `t.me/share/url` endpoint redirects to the homepage
+    // when `url=` is empty, so we MUST pass a real link there.
+    // Telegram then appends it on a new line after `text`, which
+    // gives us the layout we want: every `\n` inside `inviteText`
+    // is preserved verbatim, and the share URL lands on its own line
+    // right under the call to action.
+    const u = encodeURIComponent(shareUrl);
+    const t = encodeURIComponent(inviteText);
+    return `https://t.me/share/url?url=${u}&text=${t}`;
   }, [shareUrl, inviteText]);
 
   const handleCopy = async () => {
