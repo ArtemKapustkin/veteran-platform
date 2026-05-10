@@ -167,9 +167,11 @@ export function gateFor(
   if (!veteran) return "needs_documents";
   if (veteran.verified) return "ok";
   if (veteran.verification_status === "none") return "needs_documents";
-  // `processing` and `rejected` both surface as a "pending review" wall.
-  // Even an AI rejection is treated as queued for an admin so the user
-  // doesn't loop on retries (admin can flip to approved in the back-office).
+  // `processing`, `pending_review`, and `rejected` all surface as a
+  // "pending review" wall. Backend marks AI failure modes (no_match,
+  // unreadable, upstream errors) as `pending_review` so the admin queue
+  // sees them; explicit admin rejections become `rejected`. Either way,
+  // the veteran can't self-retry until the admin acts in the back-office.
   return "needs_review";
 }
 

@@ -21,6 +21,10 @@ type VerificationDocument struct {
 	DocumentType string     `json:"document_type"`
 	UploadedAt   time.Time  `json:"uploaded_at"`
 	AIResult     *AIResult  `json:"ai_result,omitempty"`
+	// Who decided on this attempt (`ai` or `admin`) and when. Surfaced so the
+	// admin queue can distinguish AI-only verdicts from prior admin overrides.
+	DecidedBy *string    `json:"decided_by,omitempty"`
+	DecidedAt *time.Time `json:"decided_at,omitempty"`
 }
 
 type VerificationState struct {
@@ -36,6 +40,8 @@ func FromAttempt(a *model.VerificationAttempt) VerificationDocument {
 		ID:           a.ID,
 		DocumentType: a.DocumentType,
 		UploadedAt:   a.SubmittedAt,
+		DecidedBy:    a.DecidedBy,
+		DecidedAt:    a.DecidedAt,
 	}
 	if a.Decision != nil {
 		doc.AIResult = &AIResult{

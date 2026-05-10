@@ -16,6 +16,12 @@ back to their canonical values.
 | Марія Ковальчук (родина)         | +380500000005   | veteran | no       | Дніпро  |
 | Андрій Бойко (92-га ОМБр)        | +380500000006   | veteran | yes      | Київ    |
 
+…plus three veterans seeded with `verification_status = 'pending_review'`
+(Олександр Мельник, Світлана Гайдамака, Дмитро Захарчук) and matching
+`verification_attempts` rows, so the admin verifications screen has a
+realistic queue of AI failure modes (`unreadable`, `no_match`, upstream
+error) to render against.
+
 Plus 4 communities and 12 events (10 published, 2 pending_approval) covering
 all categories, formats, cost tiers, accessibility tags, and Kyiv districts.
 

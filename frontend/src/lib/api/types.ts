@@ -95,7 +95,15 @@ export type RegistrationStatus =
   | "cancelled"
   | "expired";
 
-export type VerificationStatus = "none" | "processing" | "approved" | "rejected";
+// `pending_review` is the bucket the admin queue cares about: AI couldn't
+// auto-approve (no_match / unreadable / upstream error) so a human needs
+// to look. `rejected` is reserved for explicit admin rejections.
+export type VerificationStatus =
+  | "none"
+  | "processing"
+  | "pending_review"
+  | "approved"
+  | "rejected";
 
 export interface Pagination {
   next_cursor: string | null;
@@ -325,6 +333,23 @@ export interface AdminEventListFilters {
   sort?: "date_asc" | "date_desc" | "quota_remaining";
   limit?: number;
   cursor?: string;
+}
+
+// Admin filters for `GET /api/v1/admin/veterans`. Mirrors the Go
+// `VeteranListFilters` struct in `repository/veteran_repository.go`. The
+// admin verifications screen uses this to filter the queue.
+export interface AdminVeteranListFilters {
+  verification_status?: VerificationStatus;
+  verified?: boolean;
+  audience_status?: AudienceStatus;
+  q?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface VeteranPage {
+  items: Veteran[];
+  pagination: Pagination;
 }
 
 export interface ApiErrorBody {

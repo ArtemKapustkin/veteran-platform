@@ -1,3 +1,5 @@
+import Script from "next/script";
+
 /**
  * Sync inline script — runs before React hydration so we never flash the
  * wrong text size / contrast on first paint after reload.
@@ -10,6 +12,11 @@
  *   - `prefers-reduced-motion: reduce` → start with reduce-motion on
  *   - `prefers-contrast: more`         → start with high-contrast on
  * Once the user toggles a setting explicitly, their stored value wins.
+ *
+ * Implemented with `next/script` + `beforeInteractive` so the snippet is
+ * injected and executed like a normal parser-blocking script. A raw
+ * `<script>` in the React tree triggers a React 19 dev warning and is not
+ * guaranteed to run on the client the same way.
  */
 const bootScript = `
 (function () {
@@ -38,5 +45,12 @@ const bootScript = `
 `;
 
 export function A11yBoot() {
-  return <script dangerouslySetInnerHTML={{ __html: bootScript }} />;
+  return (
+    // beforeInteractive in the root layout is the supported App Router pattern;
+    // the lint rule still reflects the old `pages/_document`-only guidance.
+    // eslint-disable-next-line @next/next/no-before-interactive-script-outside-document -- root layout
+    <Script id="svoi-a11y-boot" strategy="beforeInteractive">
+      {bootScript}
+    </Script>
+  );
 }

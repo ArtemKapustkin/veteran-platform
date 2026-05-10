@@ -80,7 +80,9 @@ export function AccountProfile() {
         ? "Ветеран · УБД підтверджений"
         : veteran?.verification_status === "processing"
           ? "Документи на перевірці"
-          : "Ветеран · непідтверджений";
+          : veteran?.verification_status === "pending_review"
+            ? "Документи на ручному розгляді"
+            : "Ветеран · непідтверджений";
 
   return (
     <div className="bg-bg flex-1 overflow-auto">
@@ -291,19 +293,33 @@ function AdminToolsCard() {
           Адмін-панель
         </div>
         <div className="text-text2" style={{ fontSize: 13, lineHeight: 1.5 }}>
-          Модерація і керування подіями: створення, редагування, видалення.
+          Модерація подій та ручний розгляд документів, які не пройшли
+          AI-перевірку.
         </div>
-        <Link
-          href="/admin/events"
-          className="bg-primary mt-3 inline-flex h-10 items-center self-start rounded-[10px] px-4 text-white shadow-[0_1px_2px_rgba(31,77,52,0.22)] hover:brightness-[1.04] active:brightness-95"
-          style={{
-            fontSize: 13.5,
-            fontWeight: 600,
-            letterSpacing: "-0.005em",
-          }}
-        >
-          Події
-        </Link>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/admin/events"
+            className="bg-primary inline-flex h-10 items-center rounded-[10px] px-4 text-white shadow-[0_1px_2px_rgba(31,77,52,0.22)] hover:brightness-[1.04] active:brightness-95"
+            style={{
+              fontSize: 13.5,
+              fontWeight: 600,
+              letterSpacing: "-0.005em",
+            }}
+          >
+            Події
+          </Link>
+          <Link
+            href="/admin/verifications"
+            className="border-border text-text inline-flex h-10 items-center rounded-[10px] border bg-white px-4 hover:bg-black/5"
+            style={{
+              fontSize: 13.5,
+              fontWeight: 600,
+              letterSpacing: "-0.005em",
+            }}
+          >
+            Верифікації
+          </Link>
+        </div>
       </div>
     </div>
   );

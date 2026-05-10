@@ -34,7 +34,7 @@ export default function RootLayout({
 }>) {
   return (
     // The text-size-md class is a static fallback for the very first
-    // server-rendered byte before the inline <A11yBoot> script swaps in
+    // server-rendered byte before A11yBoot's beforeInteractive script swaps in
     // the persisted/OS-derived size class. `suppressHydrationWarning`
     // tells React the class delta on <html> is intentional — same
     // pattern used by next-themes etc.

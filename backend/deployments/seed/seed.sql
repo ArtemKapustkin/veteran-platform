@@ -29,7 +29,10 @@ VALUES
   ('cccccccc-cccc-cccc-cccc-cccccccccccc', '+380500000012', 'Тарас Левченко',       '79-та ОДШБр',    'Старший лейтенант',  'active_military', 'Київ', '{sport,education,rehabilitation}',true,  'approved', 'veteran', 'active'),
   ('dddddddd-dddd-dddd-dddd-dddddddddddd', '+380500000013', 'Оксана Литвин',        NULL,             NULL,                 'family',          'Київ', '{social,psychology}',             false, 'none',     'veteran', 'active'),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '+380500000014', 'Катерина Білоус',      '14-та ОМБр',     'Сержант',            'veteran_female',  'Київ', '{culture,social,psychology}',     true,  'approved', 'veteran', 'active'),
-  ('ffffffff-ffff-ffff-ffff-ffffffffffff', '+380500000015', 'Богдан Гончар',        '72-га ОМБр',     'Солдат',             'veteran',         'Київ', '{sport}',                         false, 'processing','veteran','active')
+  ('ffffffff-ffff-ffff-ffff-ffffffffffff', '+380500000015', 'Богдан Гончар',        '72-га ОМБр',     'Солдат',             'veteran',         'Київ', '{sport}',                         false, 'processing','veteran','active'),
+  ('a1111111-1111-1111-1111-111111111111', '+380500000016', 'Олександр Мельник',    '128-ма ОГШБр',   'Сержант',            'veteran',         'Київ', '{rehabilitation,social}',         false, 'pending_review','veteran','active'),
+  ('a2222222-2222-2222-2222-222222222222', '+380500000017', 'Світлана Гайдамака',   NULL,             NULL,                 'fallen_family',   'Київ', '{psychology,social}',             false, 'pending_review','veteran','active'),
+  ('a3333333-3333-3333-3333-333333333333', '+380500000018', 'Дмитро Захарчук',      '36-та ОБрМП',    'Старшина',           'veteran',         'Київ', '{sport,nature}',                  false, 'pending_review','veteran','active')
 ON CONFLICT (id) DO UPDATE SET
   phone               = EXCLUDED.phone,
   fullname            = EXCLUDED.fullname,
@@ -408,11 +411,46 @@ SET seats_taken = COALESCE((
 ), 0),
 updated_at = now();
 
+-- ─────────────────────── Verification attempts ───────────────────────
+-- Mock AI verdicts for the three pending_review veterans so the admin
+-- queue has realistic data: one unreadable photo, one no_match (extracted
+-- name didn't line up with the profile), and one upstream AI error.
+
+INSERT INTO vp.verification_attempts (
+  id, veteran_id, document_type, submitted_at, decision, confidence,
+  extracted_name, extracted_id, notes, decided_at, decided_by
+) VALUES
+  ('b1111111-1111-1111-1111-111111111111',
+   'a1111111-1111-1111-1111-111111111111',
+   'ubd_paper', now() - interval '2 days',
+   'unreadable', 0.12,
+   NULL, NULL,
+   'Зображення розмите, не вдалося розпізнати ані ПІБ, ані номер посвідчення. Рекомендуємо перезняти на рівній поверхні при денному світлі.',
+   now() - interval '2 days', 'ai'),
+
+  ('b2222222-2222-2222-2222-222222222222',
+   'a2222222-2222-2222-2222-222222222222',
+   'family_fallen', now() - interval '1 day',
+   'no_match', 0.41,
+   'С. О. Гайдамака', NULL,
+   'Розпізнане імʼя на документі (ініціали + прізвище) не повністю співпадає з повним ПІБ у профілі. Можливо, документ оформлений на скорочене імʼя — потрібна перевірка людиною.',
+   now() - interval '1 day', 'ai'),
+
+  ('b3333333-3333-3333-3333-333333333333',
+   'a3333333-3333-3333-3333-333333333333',
+   'reestr_extract', now() - interval '6 hours',
+   'unreadable', 0.0,
+   NULL, NULL,
+   'AI verification failed: openai vision timeout after 30s. Please try again or escalate to admin review.',
+   now() - interval '6 hours', 'ai')
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;
 
 \echo ''
 \echo 'Seeded:'
-\echo '  15 veterans (1 admin, 9 verified, 5 unverified — incl. family/active military) — all in Київ'
+\echo '  18 veterans (1 admin, 9 verified, 5 unverified, 3 pending admin review) — all in Київ'
+\echo '  3 verification attempts mocking AI failure modes (unreadable, no_match, upstream error)'
 \echo '  4 communities'
 \echo '  12 events in Київ across 8 districts (10 published, 2 pending_approval)'
 \echo '  81 solo registrations + 1 pending-companions group of 3 with 2 invitees'

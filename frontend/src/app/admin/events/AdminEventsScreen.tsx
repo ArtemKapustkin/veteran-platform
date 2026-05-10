@@ -67,10 +67,6 @@ const CATEGORY_LABEL: Record<ApiEventCategory, string> = {
   rehabilitation: "Реабілітація",
 };
 
-type EditorMode =
-  | { kind: "create" }
-  | { kind: "edit"; event: ApiEvent };
-
 const PAGE_LIMIT = 200;
 
 export function AdminEventsScreen() {
@@ -86,7 +82,7 @@ export function AdminEventsScreen() {
   const [items, setItems] = useState<ApiEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editor, setEditor] = useState<EditorMode | null>(null);
+  const [editEvent, setEditEvent] = useState<ApiEvent | null>(null);
   // `busyId` tracks which row is currently performing a row-level action so
   // the buttons can show the disabled state without freezing the whole list.
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -242,7 +238,7 @@ export function AdminEventsScreen() {
 
   return (
     <main className="bg-bg flex min-h-[100dvh] flex-col">
-      <Header onCreate={() => setEditor({ kind: "create" })} />
+      <Header />
 
       <div className="mx-auto w-full max-w-[1200px] flex-1 px-5 pt-5 pb-12 sm:px-8">
         <FiltersBar
@@ -269,7 +265,7 @@ export function AdminEventsScreen() {
             <EventTable
               items={items}
               busyId={busyId}
-              onEdit={(ev) => setEditor({ kind: "edit", event: ev })}
+              onEdit={(ev) => setEditEvent(ev)}
               onApprove={onApprove}
               onReject={onReject}
               onPublish={onPublish}
@@ -280,12 +276,13 @@ export function AdminEventsScreen() {
         </div>
       </div>
 
-      {editor ? (
+      {editEvent ? (
         <AdminEventEditor
-          mode={editor}
-          onClose={() => setEditor(null)}
+          key={editEvent.id}
+          mode={{ kind: "edit", event: editEvent }}
+          onClose={() => setEditEvent(null)}
           onSaved={async () => {
-            setEditor(null);
+            setEditEvent(null);
             await refresh();
           }}
         />
@@ -296,7 +293,7 @@ export function AdminEventsScreen() {
 
 // ─── Header ────────────────────────────────────────────────────────────
 
-function Header({ onCreate }: { onCreate: () => void }) {
+function Header() {
   return (
     <header
       className="border-border-soft sticky top-0 z-10 flex items-center gap-3 border-b bg-white px-5 sm:px-8"
@@ -323,14 +320,18 @@ function Header({ onCreate }: { onCreate: () => void }) {
           Створення, редагування, модерація
         </div>
       </div>
-      <Btn
-        kind="primary"
-        size="md"
-        icon={<PlusIcon size={16} />}
-        onClick={onCreate}
+      <Link
+        href="/admin/verifications"
+        className="border-border text-text hidden items-center rounded-[10px] border bg-white px-3.5 py-2 hover:bg-black/5 sm:inline-flex"
+        style={{ fontSize: 13, fontWeight: 500 }}
       >
-        Створити
-      </Btn>
+        Верифікації
+      </Link>
+      <Link href="/admin/events/new">
+        <Btn kind="primary" size="md" icon={<PlusIcon size={16} />} asLink>
+          Створити
+        </Btn>
+      </Link>
     </header>
   );
 }

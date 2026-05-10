@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Btn } from "@/components/atoms/Btn";
-import { CloseIcon } from "@/components/icons";
+import { Pill } from "@/components/atoms/Pill";
+import { EventPagePreview } from "@/components/add-event/EventPagePreview";
+import { ArrowIcon, BackIcon, CloseIcon } from "@/components/icons";
+import {
+  AdminEventStepper,
+  type AdminWizardStepDef,
+} from "./AdminEventStepper";
 import { ApiError, eventsApi } from "@/lib/api";
 import type {
   AccessibilityTag,
@@ -19,6 +25,7 @@ import type {
   Location as ApiLocation,
 } from "@/lib/api/types";
 import { toast } from "@/lib/useToast";
+import { adminFormToPreviewDraft } from "./adminFormToPreviewDraft";
 
 // Static option lists. Mirror the validators in
 // `backend/internal/http_handler/event_handler.go` so a submission can't
@@ -97,6 +104,24 @@ const ADMIN_STATUS_OPTS: { id: EventStatus; label: string }[] = [
   { id: "draft", label: "Зберегти як чернетку" },
   { id: "pending_approval", label: "Залишити на модерації" },
 ];
+
+const ADMIN_STEPS_EDIT = [
+  { id: 1, label: "Основа", hint: "Назва й тематика" },
+  { id: 2, label: "Розклад", hint: "Час і квота" },
+  { id: 3, label: "Вартість", hint: "Тариф і ціни" },
+  { id: 4, label: "Локація", hint: "Місто й адреса" },
+  { id: 5, label: "Деталі", hint: "Доступність і обкладинка" },
+] as const satisfies readonly AdminWizardStepDef[];
+
+const ADMIN_STEP_PUBLISH: AdminWizardStepDef = {
+  id: 6,
+  label: "Публікація",
+  hint: "Статус після створення",
+};
+
+function maxWizardStep(isEdit: boolean): number {
+  return isEdit ? ADMIN_STEPS_EDIT.length : ADMIN_STEPS_EDIT.length + 1;
+}
 
 // Editor form state — flat strings keep the controlled inputs simple. We
 // convert to the typed payload at submit time.
@@ -193,10 +218,12 @@ function fromEvent(ev: ApiEvent): FormState {
 }
 
 export function AdminEventEditor({
+  layout = "dialog",
   mode,
   onClose,
   onSaved,
 }: {
+  layout?: "dialog" | "page";
   mode: { kind: "create" } | { kind: "edit"; event: ApiEvent };
   onClose: () => void;
   onSaved: () => void | Promise<void>;
@@ -206,25 +233,30 @@ export function AdminEventEditor({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wizardStep, setWizardStep] = useState(1);
+
+  const isDialog = layout === "dialog";
 
   // Lock background scroll while the dialog is open.
   useEffect(() => {
+    if (!isDialog) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, []);
+  }, [isDialog]);
 
   // Esc closes the editor. Unlike a Sheet we don't bother with a focus
   // trap — the dialog is short and the form fields are all reachable.
   useEffect(() => {
+    if (!isDialog) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [isDialog, onClose]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((s) => ({ ...s, [key]: value }));
@@ -232,7 +264,38 @@ export function AdminEventEditor({
   const isEdit = mode.kind === "edit";
   const title = isEdit ? "Редагувати подію" : "Створити подію";
 
+  const wizardSteps = useMemo(
+    () =>
+      isEdit
+        ? ADMIN_STEPS_EDIT
+        : ([...ADMIN_STEPS_EDIT, ADMIN_STEP_PUBLISH] as const),
+    [isEdit],
+  );
+
+  const wizardStepMax = maxWizardStep(isEdit);
+  const isLastWizardStep = wizardStep === wizardStepMax;
+
   const validation = useMemo(() => validate(form, isEdit), [form, isEdit]);
+
+  const goNextStep = () => {
+    const stepErr = validateWizardStep(wizardStep, form, isEdit);
+    if (stepErr) {
+      setError(stepErr);
+      return;
+    }
+    setError(null);
+    setWizardStep((s) => Math.min(s + 1, wizardStepMax));
+  };
+
+  const goPrevStep = () => {
+    setError(null);
+    setWizardStep((s) => Math.max(1, s - 1));
+  };
+
+  const previewDraft = useMemo(() => {
+    if (isDialog) return null;
+    return adminFormToPreviewDraft(form);
+  }, [form, isDialog]);
 
   const onSubmit = async () => {
     if (validation.errors.length > 0) {
@@ -266,59 +329,16 @@ export function AdminEventEditor({
     }
   };
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="admin-event-editor-title"
-      className="fixed inset-0 z-50 flex justify-center"
+  const formEl = (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (isLastWizardStep) void onSubmit();
+        else goNextStep();
+      }}
+      className="flex flex-col gap-5"
     >
-      <button
-        type="button"
-        aria-label="Закрити"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/35"
-      />
-      <div
-        className="bg-bg relative my-0 flex w-full max-w-[820px] flex-col overflow-hidden shadow-2xl sm:my-8 sm:rounded-2xl"
-        style={{ maxHeight: "100dvh" }}
-      >
-        <header className="border-border-soft flex items-center justify-between border-b bg-white px-5 py-4 sm:px-6">
-          <div className="min-w-0">
-            <h2
-              id="admin-event-editor-title"
-              className="text-text m-0"
-              style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.02em" }}
-            >
-              {title}
-            </h2>
-            {isEdit ? (
-              <div
-                className="text-text2 mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
-                style={{ fontSize: 12 }}
-              >
-                {mode.event.title}
-              </div>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            aria-label="Закрити"
-            onClick={onClose}
-            className="text-text2 inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/5"
-          >
-            <CloseIcon size={18} />
-          </button>
-        </header>
-
-        <div className="flex-1 overflow-auto px-5 py-5 sm:px-6">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void onSubmit();
-            }}
-            className="flex flex-col gap-5"
-          >
+            {wizardStep === 1 ? (
             <Section title="Основа">
               <Field label="Назва" required>
                 <Input
@@ -369,7 +389,9 @@ export function AdminEventEditor({
                 </Field>
               </Grid>
             </Section>
+            ) : null}
 
+            {wizardStep === 2 ? (
             <Section title="Дата і місця">
               <Grid cols={3}>
                 <Field label="Дата старту" required>
@@ -413,7 +435,9 @@ export function AdminEventEditor({
                 </Field>
               </Grid>
             </Section>
+            ) : null}
 
+            {wizardStep === 3 ? (
             <Section title="Вартість">
               <Field label="Тариф" required>
                 <Select
@@ -446,7 +470,9 @@ export function AdminEventEditor({
                 </Grid>
               ) : null}
             </Section>
+            ) : null}
 
+            {wizardStep === 4 ? (
             <Section title="Локація">
               <Grid cols={2}>
                 <Field label="Місто">
@@ -502,7 +528,9 @@ export function AdminEventEditor({
                 </Field>
               </Grid>
             </Section>
+            ) : null}
 
+            {wizardStep === 5 ? (
             <Section title="Доступність і обкладинка">
               <Field label="Теги доступності">
                 <ChipGroup
@@ -529,8 +557,9 @@ export function AdminEventEditor({
                 onChange={(v) => set("verifiedOnly", v)}
               />
             </Section>
+            ) : null}
 
-            {!isEdit ? (
+            {!isEdit && wizardStep === 6 ? (
               <Section title="Статус публікації">
                 <Field label="Що зробити після створення?">
                   <Select
@@ -556,24 +585,171 @@ export function AdminEventEditor({
                 {error}
               </div>
             ) : null}
-          </form>
-        </div>
+    </form>
+  );
 
-        <footer className="border-border-soft flex items-center justify-end gap-2 border-t bg-white px-5 py-4 sm:px-6">
-          <Btn kind="ghost" onClick={onClose} disabled={submitting}>
-            Скасувати
-          </Btn>
+  const editorFooter = (
+    <footer className="border-border-soft flex flex-shrink-0 items-center justify-between gap-3 border-t bg-white px-5 py-4 sm:px-6">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Btn kind="ghost" onClick={onClose} disabled={submitting}>
+          Скасувати
+        </Btn>
+        {wizardStep > 1 ? (
           <Btn
-            kind="primary"
-            onClick={() => void onSubmit()}
-            loading={submitting}
-            disabled={validation.errors.length > 0 && !submitting}
+            kind="secondary"
+            size="md"
+            onClick={goPrevStep}
+            disabled={submitting}
+            icon={<BackIcon size={15} />}
           >
-            {isEdit ? "Зберегти" : "Створити"}
+            Назад
           </Btn>
-        </footer>
+        ) : null}
       </div>
+      {isLastWizardStep ? (
+        <Btn
+          kind="primary"
+          type="button"
+          onClick={() => void onSubmit()}
+          loading={submitting}
+          disabled={validation.errors.length > 0 && !submitting}
+        >
+          {isEdit ? "Зберегти" : "Створити"}
+        </Btn>
+      ) : (
+        <Btn
+          kind="primary"
+          type="button"
+          onClick={goNextStep}
+          iconRight={<ArrowIcon size={15} />}
+        >
+          Далі
+        </Btn>
+      )}
+    </footer>
+  );
+
+  const shell = (
+    <div
+      className={
+        isDialog
+          ? "bg-bg relative my-0 flex w-full max-w-[820px] flex-col overflow-hidden shadow-2xl sm:my-8 sm:rounded-2xl"
+          : "border-border-soft relative mx-auto my-0 flex w-full max-w-[1280px] flex-1 flex-col overflow-hidden border bg-white sm:my-6 sm:min-h-0 sm:rounded-2xl sm:shadow-md"
+      }
+      style={isDialog ? { maxHeight: "100dvh" } : { minHeight: "min(100dvh, 100%)" }}
+    >
+      <header className="border-border-soft flex items-center justify-between border-b bg-white px-5 py-4 sm:px-6">
+        <div className="min-w-0">
+          <h2
+            id="admin-event-editor-title"
+            className="text-text m-0"
+            style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.02em" }}
+          >
+            {title}
+          </h2>
+          {isEdit ? (
+            <div
+              className="text-text2 mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
+              style={{ fontSize: 12 }}
+            >
+              {mode.event.title}
+            </div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          aria-label={isDialog ? "Закрити" : "Назад до списку"}
+          onClick={onClose}
+          className="text-text2 inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/5"
+        >
+          <CloseIcon size={18} />
+        </button>
+      </header>
+
+      <div className="border-border-soft border-b bg-white px-5 py-3.5 sm:px-6">
+        <div className="hidden sm:block">
+          <AdminEventStepper
+            steps={wizardSteps}
+            step={wizardStep}
+            onJump={(id) => {
+              setError(null);
+              setWizardStep(id);
+            }}
+          />
+        </div>
+        <div className="sm:hidden">
+          <AdminEventStepper
+            compact
+            steps={wizardSteps}
+            step={wizardStep}
+          />
+        </div>
+      </div>
+
+      {isDialog ? (
+        <>
+          <div className="flex-1 overflow-auto px-5 py-5 sm:px-6">{formEl}</div>
+          {editorFooter}
+        </>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          <div className="border-border-soft flex min-h-0 min-w-0 flex-1 flex-col lg:border-r">
+            <div className="flex-1 overflow-auto px-5 py-5 sm:px-6">{formEl}</div>
+            {editorFooter}
+          </div>
+          <aside
+            className="border-border-soft bg-bg flex w-full flex-shrink-0 flex-col border-t lg:w-[min(400px,38%)] lg:max-w-[460px] lg:border-t-0 lg:border-l"
+            aria-label="Превʼю події"
+          >
+            <div className="border-border-soft flex flex-shrink-0 items-center justify-between border-b bg-white px-5 py-3.5 sm:px-6">
+              <span
+                className="text-text-muted"
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Превʼю · картка у списку
+              </span>
+              <Pill color="grey">live</Pill>
+            </div>
+            <div className="min-h-[260px] flex-1 overflow-auto lg:min-h-0">
+              {previewDraft ? <EventPagePreview draft={previewDraft} /> : null}
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
+  );
+
+  if (isDialog) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-event-editor-title"
+        className="fixed inset-0 z-50 flex justify-center"
+      >
+        <button
+          type="button"
+          aria-label="Закрити"
+          onClick={onClose}
+          className="absolute inset-0 bg-black/35"
+        />
+        {shell}
+      </div>
+    );
+  }
+
+  return (
+    <main
+      className="bg-bg flex min-h-[100dvh] flex-col"
+      aria-labelledby="admin-event-editor-title"
+    >
+      {shell}
+    </main>
   );
 }
 
@@ -583,45 +759,74 @@ interface ValidationResult {
   errors: string[];
 }
 
-function validate(form: FormState, isEdit: boolean): ValidationResult {
-  const errors: string[] = [];
-  if (!form.title.trim() || form.title.trim().length < 3) {
-    errors.push("Назва має містити щонайменше 3 символи.");
-  }
-  if (form.description.trim().length > 150) {
-    errors.push("Опис не може перевищувати 150 символів.");
-  }
-  if (!form.date || !form.time) {
-    errors.push("Вкажи дату і час старту.");
-  } else {
-    const starts = combineDateTime(form.date, form.time);
-    if (!isEdit && starts.getTime() <= Date.now()) {
-      errors.push("Старт має бути у майбутньому.");
-    }
-    if (form.endDate || form.endTime) {
-      if (!form.endDate || !form.endTime) {
-        errors.push("Заверши заповнення дати/часу завершення.");
-      } else {
-        const ends = combineDateTime(form.endDate, form.endTime);
-        if (ends.getTime() <= starts.getTime()) {
-          errors.push("Завершення має бути після старту.");
+function validateWizardStep(
+  step: number,
+  form: FormState,
+  isEdit: boolean,
+): string | null {
+  if (step === 6 && isEdit) return null;
+  switch (step) {
+    case 1:
+      if (!form.title.trim() || form.title.trim().length < 3) {
+        return "Назва має містити щонайменше 3 символи.";
+      }
+      if (form.description.trim().length > 150) {
+        return "Опис не може перевищувати 150 символів.";
+      }
+      return null;
+    case 2:
+      if (!form.date || !form.time) {
+        return "Вкажи дату і час старту.";
+      }
+      {
+        const starts = combineDateTime(form.date, form.time);
+        if (!isEdit && starts.getTime() <= Date.now()) {
+          return "Старт має бути у майбутньому.";
+        }
+        if (form.endDate || form.endTime) {
+          if (!form.endDate || !form.endTime) {
+            return "Заверши заповнення дати/часу завершення.";
+          }
+          const ends = combineDateTime(form.endDate, form.endTime);
+          if (ends.getTime() <= starts.getTime()) {
+            return "Завершення має бути після старту.";
+          }
         }
       }
-    }
+      {
+        const quota = parseInt(form.quota, 10);
+        if (!quota || quota < 1) {
+          return "Квота має бути щонайменше 1.";
+        }
+      }
+      return null;
+    case 3:
+      if (form.costTier === "paid") {
+        if (!form.priceUah || Number(form.priceUah) < 0) {
+          return "Вкажи ціну.";
+        }
+      }
+      if (form.costTier === "discount_for_veterans") {
+        if (!form.priceUah || !form.veteranPriceUah) {
+          return "Вкажи звичайну ціну і ціну для ветеранів.";
+        }
+      }
+      return null;
+    case 4:
+    case 5:
+    case 6:
+      return null;
+    default:
+      return null;
   }
-  const quota = parseInt(form.quota, 10);
-  if (!quota || quota < 1) {
-    errors.push("Квота має бути щонайменше 1.");
-  }
-  if (form.costTier === "paid") {
-    if (!form.priceUah || Number(form.priceUah) < 0) {
-      errors.push("Вкажи ціну.");
-    }
-  }
-  if (form.costTier === "discount_for_veterans") {
-    if (!form.priceUah || !form.veteranPriceUah) {
-      errors.push("Вкажи звичайну ціну і ціну для ветеранів.");
-    }
+}
+
+function validate(form: FormState, isEdit: boolean): ValidationResult {
+  const errors: string[] = [];
+  const max = maxWizardStep(isEdit);
+  for (let s = 1; s <= max; s++) {
+    const msg = validateWizardStep(s, form, isEdit);
+    if (msg) errors.push(msg);
   }
   return { errors };
 }

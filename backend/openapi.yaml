@@ -897,7 +897,16 @@ components:
 
     VerificationStatus:
       type: string
-      enum: [none, processing, approved, rejected]
+      description: |
+        Lifecycle of a veteran's verification:
+          - `none` — never submitted documents.
+          - `processing` — submission in flight (rare; OpenAI Vision is synchronous).
+          - `pending_review` — AI couldn't reach a confident `match` (no_match,
+            unreadable, or upstream error). Sits in the admin queue until a
+            human approves or rejects.
+          - `approved` — verified (by AI or by admin override).
+          - `rejected` — admin explicitly rejected the submission.
+      enum: [none, processing, pending_review, approved, rejected]
 
     # ─────── REFERENCE / DICTIONARY RESPONSES ───────
 
@@ -1025,6 +1034,8 @@ components:
         id:            { type: string, format: uuid }
         document_type: { $ref: '#/components/schemas/DocumentType' }
         uploaded_at:   { type: string, format: date-time }
+        decided_by:    { type: string, nullable: true, description: "`ai` or `admin`. Lets the admin queue distinguish AI-only verdicts from prior admin overrides." }
+        decided_at:    { type: string, format: date-time, nullable: true }
         ai_result:
           type: object
           nullable: true

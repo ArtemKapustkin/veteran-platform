@@ -129,7 +129,12 @@ func (s *VerificationService) Submit(ctx context.Context, veteranID uuid.UUID, d
 		}
 	}
 
-	finalStatus := "rejected"
+	// AI's confident `match` flips the veteran straight to `approved`.
+	// Anything else — `no_match`, `unreadable`, or an outright AI error —
+	// queues the submission for human review (`pending_review`) so an
+	// admin can override the decision instead of leaving the veteran
+	// stuck on a terminal-feeling `rejected` flag they didn't earn.
+	finalStatus := "pending_review"
 	finalVerified := false
 	if bestDecision == "match" && bestConfidence >= matchConfidenceThreshold {
 		finalStatus = "approved"
@@ -196,6 +201,21 @@ func (s *VerificationService) AdminVerify(ctx context.Context, veteranID uuid.UU
 	if veteran == nil {
 		return nil, apperrors.NewNotFoundError("veteran not found")
 	}
+
+	// Re-use the document_type from the most recent submission so the audit
+	// row reads as "admin override of <that document>" instead of always
+	// pinning admin decisions to `self_declaration`. Falls back to
+	// `self_declaration` for the no-prior-attempt edge case (e.g. admin
+	// approving someone manually before they ever submitted).
+	prior, err := s.attempts.ListByVeteran(ctx, veteranID)
+	if err != nil {
+		return nil, err
+	}
+	docType := "self_declaration"
+	if len(prior) > 0 {
+		docType = prior[0].DocumentType
+	}
+
 	now := time.Now()
 	status := "rejected"
 	if approved {
@@ -210,7 +230,7 @@ func (s *VerificationService) AdminVerify(ctx context.Context, veteranID uuid.UU
 	a := &model.VerificationAttempt{
 		ID:           uuid.New(),
 		VeteranID:    veteranID,
-		DocumentType: "self_declaration",
+		DocumentType: docType,
 		SubmittedAt:  now,
 		Decision:     &decision,
 		Confidence:   &conf,
