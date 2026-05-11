@@ -75,13 +75,9 @@ export function useLogin({ onSuccess }: UseLoginOpts = {}) {
     setBusy(true);
     try {
       await authApi.requestOtp(fullPhone);
-      // Twilio is stubbed in dev; surface the dev-only hint so QA knows
-      // where to find the code without forcing them to read backend docs.
-      setHint(
-        process.env.NODE_ENV === "production"
-          ? null
-          : "У dev-режимі код у логах: docker compose logs backend | grep OTP",
-      );
+      // SMS is temporarily disabled — surface the fallback code so users
+      // (and QA) can still sign in without reading backend docs.
+      setHint("SMS тимчасово вимкнено — використай код 044572");
       setMode("code");
       setCode("");
       setResendIn(RESEND_SECONDS);

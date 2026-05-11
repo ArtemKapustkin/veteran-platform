@@ -157,9 +157,16 @@ html.high-contrast *:focus-visible {
 html.high-contrast .a11y-chip,
 html.high-contrast .a11y-chip-strong,
 html.high-contrast .a11y-tip,
-html.high-contrast .a11y-toggle,
 html.high-contrast .a11y-size-pill[data-on="true"] {
   border: 2px solid #000000;
+}
+/* Toggles get an outline (not border) in HC so the absolutely-positioned
+   thumb keeps its 2px inset from the track. A 2px border with the default
+   border-box sizing would shrink the inner box by 4px and push the thumb
+   onto the bottom border, which is the bulge we were seeing. */
+html.high-contrast .a11y-toggle {
+  outline: 2px solid #000000;
+  outline-offset: 0;
 }
 html.high-contrast .a11y-toggle[data-on="false"] > span {
   border: 1px solid #000000;

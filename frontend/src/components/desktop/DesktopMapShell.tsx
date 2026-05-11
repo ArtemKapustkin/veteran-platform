@@ -77,17 +77,22 @@ export function DesktopMapShell({
 
   // Re-center the map when the user picks a different city. Jump rather
   // than fly — animating across hundreds of kilometers feels disorienting
-  // and stalls the user. Skipped while a pin is focused so we don't yank
-  // the camera off the user's current selection.
+  // and stalls the user. We compare against a ref of the previous city
+  // so this only fires on an *actual* city change. In particular, closing
+  // a focused event (focused → undefined) must NOT re-trigger this and
+  // yank the camera back to CITY_ZOOM — we want to leave the map exactly
+  // where the user last had it after they dismiss the pin preview.
+  const prevCityRef = useRef(activeCity);
   useEffect(() => {
-    if (focused) return;
+    if (prevCityRef.current === activeCity) return;
+    prevCityRef.current = activeCity;
     const map = mapRef.current;
     if (!map) return;
     map.jumpTo({
       center: [activeCity.center.lng, activeCity.center.lat],
       zoom: CITY_ZOOM,
     });
-  }, [activeCity, focused]);
+  }, [activeCity]);
 
   return (
     <div className="bg-bg flex flex-col" style={{ height: "100vh" }}>
